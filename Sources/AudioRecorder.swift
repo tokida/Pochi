@@ -19,7 +19,7 @@ class AudioRecorder: NSObject, ObservableObject {
     private func createDirectory() {
         let fileManager = FileManager.default
         if let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first {
-            let saveUrl = musicDirectory.appendingPathComponent("SimpleRecorder")
+            let saveUrl = musicDirectory.appendingPathComponent("Pochi")
             if !fileManager.fileExists(atPath: saveUrl.path) {
                 do {
                     try fileManager.createDirectory(at: saveUrl, withIntermediateDirectories: true, attributes: nil)
@@ -77,7 +77,7 @@ class AudioRecorder: NSObject, ObservableObject {
     private func getFileURL(fileName: String) -> URL? {
         let fileManager = FileManager.default
         if let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first {
-            return musicDirectory.appendingPathComponent("SimpleRecorder").appendingPathComponent(fileName)
+            return musicDirectory.appendingPathComponent("Pochi").appendingPathComponent(fileName)
         }
         return nil
     }

@@ -182,7 +182,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func openFolder() {
         let fileManager = FileManager.default
         if let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first {
-            let saveUrl = musicDirectory.appendingPathComponent("SimpleRecorder")
+            let saveUrl = musicDirectory.appendingPathComponent("Pochi")
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: saveUrl.path)
         }
     }
