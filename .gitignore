@@ -1,0 +1,15 @@
+# Build artifacts
+*.app
+*.o
+*.swiftmodule
+*.swiftdoc
+*.abi.json
+
+# Temporary files
+.DS_Store
+AppIcon.png
+AppIcon.iconset/
+*.log
+
+# User specific
+xcuserdata/
