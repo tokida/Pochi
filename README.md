@@ -1,53 +1,64 @@
 # Pochi
 
-Macのメニューバーに常駐する、シンプルで軽量なボイスレコーダーアプリです。
-会議、アイデアのメモ、インタビューなど、瞬時に録音を開始したい場面に最適です。
+<p align="center">
+  <img src="AppIcon.png" alt="Pochi App Icon" width="128" height="128">
+</p>
 
-## ✨ 主な機能
+<p align="center">
+  <strong>A simple, lightweight voice recorder for macOS that lives in your menu bar.</strong>
+</p>
 
-*   **メニューバー常駐:** Dockを占有せず、メニューバー（時計の横）からいつでもアクセス可能。
-*   **ワンタッチ録音:** ホットキーまたはメニュークリックですぐに録音開始。
-*   **視覚的なインジケータ:**
-    *   **メニューバーアイコン:** 録音中は声の大きさに合わせて赤い丸が伸縮アニメーションします。
-    *   **フローティングパネル:** 録音中のみ、画面右上に経過時間とレベルメーターを表示。
-*   **自動保存:** ファイル名は日時（`Recording_YYYY-MM-DD_HH-mm-ss.m4a`）で自動生成され、管理不要。
-*   **高音質AAC:** 標準的なAAC (.m4a) 形式で保存。Google NotebookLM などへの取り込みにも対応。
+---
 
-## 📥 インストール方法
+**Pochi** is designed for moments when you need to start recording instantly—meetings, quick ideas, or interviews—without cluttering your Dock.
 
-1.  配布された `Pochi.zip` を解凍します。
-2.  `Pochi.app` を「アプリケーション」フォルダ（または任意の場所）に移動します。
-3.  アプリをダブルクリックして起動します。
-    *   初回のみ、「マイクへのアクセス」を求めるダイアログが表示されますので、**「許可」** をクリックしてください。
+## ✨ Key Features
 
-## 🚀 使い方
+*   **Menu Bar Resident:** Always accessible from the menu bar (next to the clock), keeping your Dock clean.
+*   **One-Touch Recording:** Start/Stop recording instantly via Global Hotkey or Menu click.
+*   **Visual Indicators:**
+    *   **Menu Bar Icon:** The red dot icon pulses and changes size in real-time based on your voice level.
+    *   **Floating Panel:** A small panel appears at the top-right of your screen during recording to show duration and audio levels.
+*   **Auto-Save:** Recordings are automatically named with the timestamp (`Recording_YYYY-MM-DD_HH-mm-ss.m4a`) and saved locally.
+*   **High Quality AAC:** Saves in standard AAC (.m4a) format, perfect for importing into tools like **Google NotebookLM**.
 
-### 録音の開始 / 停止
+## 📥 Installation
 
-以下のいずれかの方法で操作できます。
+1.  Download the latest release (or unzip `Pochi.zip`).
+2.  Move `Pochi.app` to your **Applications** folder.
+3.  Double-click to launch.
+    *   *Note:* You will be asked to grant **Microphone Access** on the first launch. Please click **"OK"**.
 
-1.  **ショートカットキー (推奨):**
-    *   `Command` + `Option` + `R` を押すと、いつでも録音を開始/停止できます。
-    *   ※ 他のアプリを使用中でも動作します。
+## 🚀 Usage
 
-2.  **メニューバーアイコン:**
-    *   メニューバーのアイコン（マイク、または赤い丸）をクリックし、**Start Recording** / **Stop Recording** を選択。
+### Start / Stop Recording
 
-3.  **フローティングパネル:**
-    *   録音中に表示されるパネルの「停止ボタン（■）」をクリック。
+You can control Pochi in two ways:
 
-### 保存されたファイルの確認
+1.  **Global Hotkey (Recommended):**
+    *   Press `Command` + `Option` + `R` anywhere to toggle recording.
+    *   Works even when Pochi is in the background.
 
-1.  メニューバーアイコンをクリック。
-2.  **Open Recordings Folder** を選択。
-    *   Finderが開き、保存先フォルダ（`~/Music/Pochi`）が表示されます。
+2.  **Menu Bar Icon:**
+    *   Click the icon (Mic or Red Dot) in the menu bar.
+    *   Select **Start Recording** / **Stop Recording**.
 
-## ⚠️ 注意事項
+### Accessing Recordings
 
-*   **終了方法:** メニューバーアイコンをクリックし、**Quit** を選択して終了してください（Dockには表示されません）。
-*   **スリープ抑制:** 録音中はMacが自動でスリープしないように抑制されます。
+1.  Click the Pochi icon in the menu bar.
+2.  Select **Open Recordings Folder**.
+    *   This opens `~/Music/Pochi` in Finder.
 
-## 動作環境
+## ⚠️ Notes
 
-*   macOS 11.0 (Big Sur) 以降
-*   Apple Silicon (M1/M2/M3) または Intel Mac
+*   **Quitting:** Click the menu bar icon and select **Quit** to exit the application completely.
+*   **Sleep Prevention:** Pochi automatically prevents your Mac from sleeping while recording is in progress.
+
+## Requirements
+
+*   macOS 11.0 (Big Sur) or later
+*   Apple Silicon (M1/M2/M3) or Intel Mac
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
