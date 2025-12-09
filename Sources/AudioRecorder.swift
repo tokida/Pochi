@@ -1,12 +1,28 @@
 import Foundation
 import AVFoundation
 import IOKit.pwr_mgt
+import SwiftUI
+
+struct Recording: Identifiable, Equatable {
+    let id = UUID()
+    let fileURL: URL
+    let createdAt: Date
+    
+    var fileName: String {
+        fileURL.lastPathComponent
+    }
+    
+    var fileNameWithoutExtension: String {
+        fileURL.deletingPathExtension().lastPathComponent
+    }
+}
 
 class AudioRecorder: NSObject, ObservableObject {
     var audioRecorder: AVAudioRecorder?
     @Published var isRecording = false
     @Published var recordingTime: TimeInterval = 0
     @Published var audioLevel: Float = 0.0
+    @Published var recordings: [Recording] = []
     
     private var timer: Timer?
     private var sleepAssertionID: IOPMAssertionID = 0
@@ -14,6 +30,7 @@ class AudioRecorder: NSObject, ObservableObject {
     override init() {
         super.init()
         createDirectory()
+        fetchRecordings()
     }
     
     private func createDirectory() {
@@ -28,6 +45,67 @@ class AudioRecorder: NSObject, ObservableObject {
                     print("Error creating directory: \(error.localizedDescription)")
                 }
             }
+        }
+    }
+    
+    func fetchRecordings() {
+        let fileManager = FileManager.default
+        guard let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first else { return }
+        let pochiDir = musicDirectory.appendingPathComponent("Pochi")
+        
+        do {
+            let fileURLs = try fileManager.contentsOfDirectory(at: pochiDir, includingPropertiesForKeys: [.creationDateKey], options: .skipsHiddenFiles)
+            
+            let audioFiles = fileURLs.filter { ["m4a", "mp3", "wav"].contains($0.pathExtension) }
+            
+            DispatchQueue.main.async {
+                self.recordings = audioFiles.map { url in
+                    let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
+                    return Recording(fileURL: url, createdAt: creationDate)
+                }.sorted(by: { $0.createdAt > $1.createdAt })
+            }
+        } catch {
+            print("Error fetching recordings: \(error)")
+        }
+    }
+    
+    func renameRecording(_ recording: Recording, newName: String) {
+        let fileManager = FileManager.default
+        let directory = recording.fileURL.deletingLastPathComponent()
+        let newURL = directory.appendingPathComponent(newName)
+        
+        // Check if extension is missing, append original if so
+        var finalURL = newURL
+        if newURL.pathExtension.isEmpty {
+            finalURL = newURL.appendingPathExtension(recording.fileURL.pathExtension)
+        }
+        
+        do {
+            try fileManager.moveItem(at: recording.fileURL, to: finalURL)
+            fetchRecordings()
+        } catch {
+            print("Error renaming file: \(error.localizedDescription)")
+        }
+    }
+    
+    func deleteRecording(at offsets: IndexSet) {
+        let fileManager = FileManager.default
+        offsets.forEach { index in
+            let recording = recordings[index]
+            do {
+                try fileManager.removeItem(at: recording.fileURL)
+            } catch {
+                print("Error deleting file: \(error.localizedDescription)")
+            }
+        }
+        fetchRecordings()
+    }
+    
+    func openFolder() {
+        let fileManager = FileManager.default
+        if let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first {
+            let saveUrl = musicDirectory.appendingPathComponent("Pochi")
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: saveUrl.path)
         }
     }
     
@@ -66,6 +144,7 @@ class AudioRecorder: NSObject, ObservableObject {
         releaseSleep()
         audioLevel = 0.0 // Reset level
         print("Recording stopped.")
+        fetchRecordings()
     }
     
     private func getFileName() -> String {

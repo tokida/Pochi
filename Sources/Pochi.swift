@@ -7,6 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var audioRecorder = AudioRecorder()
     var floatingPanel: FloatingPanel!
+    var popover: NSPopover!
     var cancellables = Set<AnyCancellable>()
     
     // HotKey Reference
@@ -24,9 +25,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 button.image = image
                 button.title = "" // Clear title if image loads successfully
             }
+            button.action = #selector(togglePopover)
+            button.target = self
         }
         
-        setupMenu()
+        setupPopover()
         setupFloatingPanel()
         setupBindings()
         registerHotKey() // Command + Option + R
@@ -61,23 +64,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_R), UInt32(modifiers), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
     }
     
-    func setupMenu() {
-        let menu = NSMenu()
-        
-        let recordItem = NSMenuItem(title: "Start Recording", action: #selector(toggleRecording), keyEquivalent: "r")
-        // Bind title to recording state dynamically if possible, but for now we use updateMenu
-        recordItem.tag = 1 
-        menu.addItem(recordItem)
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        menu.addItem(NSMenuItem(title: "Open Recordings Folder", action: #selector(openFolder), keyEquivalent: "o"))
-        
-        menu.addItem(NSMenuItem.separator())
-        
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
-        
-        statusItem.menu = menu
+    func setupPopover() {
+        let popover = NSPopover()
+        popover.contentSize = NSSize(width: 320, height: 400)
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: RecordingListView(audioRecorder: audioRecorder))
+        self.popover = popover
+    }
+    
+    @objc func togglePopover(_ sender: AnyObject?) {
+        if let button = statusItem.button {
+            if popover.isShown {
+                popover.performClose(sender)
+            } else {
+                audioRecorder.fetchRecordings() // Refresh list before showing
+                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+                // Bring to front
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                popover.contentViewController?.view.window?.makeKey()
+            }
+        }
     }
     
     func setupFloatingPanel() {
@@ -153,12 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func updateUI(isRecording: Bool) {
-        guard let button = statusItem.button, let menu = statusItem.menu else { return }
-        
-        // Update Menu Item Text
-        if let recordItem = menu.item(withTag: 1) {
-            recordItem.title = isRecording ? "Stop Recording" : "Start Recording"
-        }
+        guard let button = statusItem.button else { return }
         
         // Show/Hide Floating Panel
         if isRecording {
@@ -177,17 +178,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             audioRecorder.startRecording()
         }
-    }
-    
-    @objc func openFolder() {
-        let fileManager = FileManager.default
-        if let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first {
-            let saveUrl = musicDirectory.appendingPathComponent("Pochi")
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: saveUrl.path)
-        }
-    }
-    
-    @objc func quitApp() {
-        NSApplication.shared.terminate(nil)
     }
 }
