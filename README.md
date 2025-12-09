@@ -19,16 +19,18 @@
 *   **One-Touch Recording:** Start/Stop recording instantly via Global Hotkey (`Cmd+Opt+R`) or the big record button in the menu.
 *   **File Management:**
     *   **Rename List:** Rename your recorded files directly from the list (extensions are preserved automatically).
-    *   **Drag & Drop:** (Coming soon) or use the "Finder" button to access raw files.
-*   **Launch at Login:** Option to automatically start Pochi when you log in to your Mac.
+    *   **One-Click Finder Access:** Click the folder icon to instantly reveal your recordings in Finder.
+*   **Minimalist & Configurable:**
+    *   **Gear Menu:** A clean settings menu tucked away under a gear icon.
+    *   **Launch at Login:** Option to automatically start Pochi when you log in to your Mac.
+    *   **Menu Bar Timer:** Option to show the recording duration directly in the menu bar (e.g., `🔴 01:23`).
 *   **Visual Indicators:**
-    *   **Menu Bar Icon:** The red dot icon pulses and changes size in real-time based on your voice level.
-    *   **Floating Panel:** A small panel appears at the top-right of your screen during recording to show duration and audio levels.
+    *   **Dynamic Icon:** The menu bar icon changes to a recording indicator and pulses based on your voice level.
 *   **High Quality AAC:** Saves in standard AAC (.m4a) format, perfect for importing into tools like **Google NotebookLM**.
 
 ## 📥 Installation
 
-1.  Download the latest release (or unzip `Pochi.zip`).
+1.  Download the latest release.
 2.  Move `Pochi.app` to your **Applications** folder.
 3.  Double-click to launch.
     *   *Note:* You will be asked to grant **Microphone Access** on the first launch. Please click **"OK"**.
@@ -52,15 +54,18 @@ You can control Pochi in two ways:
 1.  **View Recent:** The popover shows your last 10 recordings.
 2.  **Rename:** Click on any filename in the list to rename it. The extension (.m4a) is handled automatically.
 3.  **Delete:** Swipe left or use right-click logic (depending on OS config) to delete recordings from the list.
-4.  **Open Folder:** Click the **Folder Icon** in the bottom left to open `~/Music/Pochi` in Finder.
+4.  **Open Folder:** Click the **Folder Icon (📂)** in the bottom left to open `~/Music/Pochi` in Finder.
 
-### Settings
+### Settings ⚙️
 
-*   **Launch at Login:** Toggle the checkbox at the bottom of the popover to enable/disable auto-start.
+Click the **Gear Icon** in the bottom right corner to access:
+
+*   **Launch at Login:** Enable/disable auto-start.
+*   **Show Timer in Menu Bar:** Toggle the real-time duration display in the menu bar.
+*   **Quit Pochi:** Completely exit the application.
 
 ## ⚠️ Notes
 
-*   **Quitting:** Click the **Power Icon** in the bottom right of the popover to exit the application completely.
 *   **Sleep Prevention:** Pochi automatically prevents your Mac from sleeping while recording is in progress.
 
 ## Requirements
