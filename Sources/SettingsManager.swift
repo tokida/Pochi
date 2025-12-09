@@ -1,7 +1,12 @@
 import Foundation
 
-class LaunchManager: ObservableObject {
+class SettingsManager: ObservableObject {
     @Published var isLaunchAtLoginEnabled: Bool = false
+    @Published var showTimerInMenuBar: Bool {
+        didSet {
+            UserDefaults.standard.set(showTimerInMenuBar, forKey: "showTimerInMenuBar")
+        }
+    }
     
     private var plistURL: URL? {
         guard let home = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
@@ -9,6 +14,14 @@ class LaunchManager: ObservableObject {
     }
     
     init() {
+        // Initialize settings from UserDefaults
+        // Default to true if not set
+        if UserDefaults.standard.object(forKey: "showTimerInMenuBar") == nil {
+            self.showTimerInMenuBar = true
+        } else {
+            self.showTimerInMenuBar = UserDefaults.standard.bool(forKey: "showTimerInMenuBar")
+        }
+        
         checkStatus()
     }
     

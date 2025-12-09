@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RecordingListView: View {
     @ObservedObject var audioRecorder: AudioRecorder
-    @StateObject var launchManager = LaunchManager()
+    @ObservedObject var settingsManager: SettingsManager
     
     var body: some View {
         VStack(spacing: 0) {
@@ -67,36 +67,42 @@ struct RecordingListView: View {
             
             Divider()
             
-            // Footer
+            // Footer (Actions & Settings)
             HStack {
                 Button(action: {
                     audioRecorder.openFolder()
                 }) {
-                    Label("Finder", systemImage: "folder")
+                    Image(systemName: "folder")
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary)
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(.primary)
+                .help("Open Recordings Folder")
                 
                 Spacer()
                 
-                Toggle("Launch at Login", isOn: Binding(
-                    get: { launchManager.isLaunchAtLoginEnabled },
-                    set: { launchManager.toggleLaunchAtLogin(enabled: $0) }
-                ))
-                .toggleStyle(CheckboxToggleStyle())
-                .font(.caption)
-                
-                Spacer()
-                
-                Button(action: {
-                    NSApplication.shared.terminate(nil)
-                }) {
-                    Label("Quit", systemImage: "power")
+                Menu {
+                    Toggle("Launch at Login", isOn: Binding(
+                        get: { settingsManager.isLaunchAtLoginEnabled },
+                        set: { settingsManager.toggleLaunchAtLogin(enabled: $0) }
+                    ))
+                    
+                    Toggle("Show Timer in Menu Bar", isOn: $settingsManager.showTimerInMenuBar)
+                    
+                    Divider()
+                    
+                    Button("Quit Pochi") {
+                        NSApplication.shared.terminate(nil)
+                    }
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(.primary)
+                .menuStyle(.borderlessButton)
+                .fixedSize() // Prevents expansion
             }
-            .padding(10)
+            .padding(12)
             .background(Color(NSColor.controlBackgroundColor))
         }
         .frame(width: 320)

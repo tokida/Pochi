@@ -2,7 +2,7 @@
 
 APP_NAME="Pochi"
 APP_BUNDLE="$APP_NAME.app"
-SOURCES="Sources/main.swift Sources/Pochi.swift Sources/AudioRecorder.swift Sources/FloatingPanel.swift Sources/RecordingListView.swift Sources/LaunchManager.swift"
+SOURCES="Sources/main.swift Sources/Pochi.swift Sources/AudioRecorder.swift Sources/RecordingListView.swift Sources/SettingsManager.swift"
 
 # Clean previous build
 rm -rf "$APP_BUNDLE"

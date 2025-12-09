@@ -6,7 +6,7 @@ import Carbon
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var audioRecorder = AudioRecorder()
-    var floatingPanel: FloatingPanel!
+    var settingsManager = SettingsManager()
     var popover: NSPopover!
     var cancellables = Set<AnyCancellable>()
     
@@ -20,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let button = statusItem.button {
             // Set a default title first to ensure visibility even if image fails
             button.title = "REC"
+            button.imagePosition = .imageLeft
             // Try to load the image
             if let image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Record") {
                 button.image = image
@@ -30,7 +31,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         setupPopover()
-        setupFloatingPanel()
         setupBindings()
         registerHotKey() // Command + Option + R
     }
@@ -41,11 +41,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Install handler
         InstallEventHandler(GetApplicationEventTarget(), { (nextHandler, theEvent, userData) -> OSStatus in
-            // Unsafe pointer cast to get AppDelegate instance if needed, but here we use a global singleton approach or closure capture if possible.
-            // Since C-function pointer context is tricky in Swift without a global/static, 
-            // we will use the NotificationCenter to broadcast the hotkey event or access the shared delegate if possible.
-            // For simplicity in this script, we'll forward to the NSApp delegate.
-            
             if let delegate = NSApplication.shared.delegate as? AppDelegate {
                 delegate.toggleRecording()
             }
@@ -68,7 +63,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let popover = NSPopover()
         popover.contentSize = NSSize(width: 320, height: 400)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: RecordingListView(audioRecorder: audioRecorder))
+        // Pass both dependencies
+        popover.contentViewController = NSHostingController(rootView: RecordingListView(audioRecorder: audioRecorder, settingsManager: settingsManager))
         self.popover = popover
     }
     
@@ -86,23 +82,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func setupFloatingPanel() {
-        let contentView = RecorderStatusView(recorder: audioRecorder)
-        let hostingController = NSHostingController(rootView: contentView)
-        
-        floatingPanel = FloatingPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 200, height: 50), // Size will be adjusted by SwiftUI content
-            backing: .buffered,
-            defer: false
-        )
-        floatingPanel.contentViewController = hostingController
-        
-        // Auto-resize panel to fit SwiftUI content
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-        // Initial layout pass might be needed
-        floatingPanel.layoutIfNeeded()
-    }
-    
     func setupBindings() {
         audioRecorder.$isRecording
             .receive(on: RunLoop.main)
@@ -117,6 +96,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.updateIcon(level: level)
             }
             .store(in: &cancellables)
+            
+        // Timer update binding
+        audioRecorder.$recordingTime
+            .receive(on: RunLoop.main)
+            .sink { [weak self] time in
+                self?.updateTimeDisplay(time: time)
+            }
+            .store(in: &cancellables)
+            
+        // Settings update binding
+        settingsManager.$showTimerInMenuBar
+            .receive(on: RunLoop.main)
+            .sink { [weak self] show in
+                // Force update display
+                if let self = self {
+                    self.updateTimeDisplay(time: self.audioRecorder.recordingTime)
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    func updateTimeDisplay(time: TimeInterval) {
+        guard let button = statusItem.button else { return }
+        
+        if audioRecorder.isRecording && settingsManager.showTimerInMenuBar {
+            let minutes = Int(time) / 60
+            let seconds = Int(time) % 60
+            button.title = String(format: " %02d:%02d", minutes, seconds)
+            // Use monospaced digit font for stability
+            button.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+        } else {
+            button.title = ""
+        }
     }
     
     func updateIcon(level: Float) {
@@ -161,14 +173,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateUI(isRecording: Bool) {
         guard let button = statusItem.button else { return }
         
-        // Show/Hide Floating Panel
         if isRecording {
-            floatingPanel.orderFront(nil)
+            // Initial update
+            updateTimeDisplay(time: 0)
         } else {
-            floatingPanel.orderOut(nil)
-            // Reset icon when stopped
+            // Reset icon and title when stopped
             button.image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Record")
             button.contentTintColor = .labelColor
+            button.title = ""
         }
     }
     
