@@ -69,17 +69,36 @@ class AudioRecorder: NSObject, ObservableObject {
         }
     }
     
+    private func sanitizeFileName(_ name: String) -> String {
+        // Remove invalid filename characters: / \ : * ? " < > | and null character
+        let invalidCharacters = CharacterSet(charactersIn: "/\\:*?\"<>|\0")
+        let sanitized = name.components(separatedBy: invalidCharacters).joined()
+
+        // If the sanitized name is empty, return a default name
+        if sanitized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyyMMdd"
+            let dateString = formatter.string(from: Date())
+            return "\(dateString)-renamed"
+        }
+
+        return sanitized
+    }
+
     func renameRecording(_ recording: Recording, newName: String) {
         let fileManager = FileManager.default
         let directory = recording.fileURL.deletingLastPathComponent()
-        let newURL = directory.appendingPathComponent(newName)
-        
+
+        // Sanitize the new name to remove invalid characters
+        let sanitizedName = sanitizeFileName(newName)
+        let newURL = directory.appendingPathComponent(sanitizedName)
+
         // Check if extension is missing, append original if so
         var finalURL = newURL
         if newURL.pathExtension.isEmpty {
             finalURL = newURL.appendingPathExtension(recording.fileURL.pathExtension)
         }
-        
+
         do {
             try fileManager.moveItem(at: recording.fileURL, to: finalURL)
             fetchRecordings()
@@ -147,10 +166,47 @@ class AudioRecorder: NSObject, ObservableObject {
         fetchRecordings()
     }
     
+    private func getNextSequenceNumber(for dateString: String) -> Int {
+        let fileManager = FileManager.default
+        guard let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first else { return 1 }
+        let pochiDir = musicDirectory.appendingPathComponent("Pochi")
+
+        do {
+            let fileURLs = try fileManager.contentsOfDirectory(at: pochiDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+
+            // Filter files that start with the date string (e.g., "20251225-")
+            let pattern = "^\(dateString)-(\\d+)\\."
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+
+            var maxSequence = 0
+            for fileURL in fileURLs {
+                let filename = fileURL.lastPathComponent
+                let nsFilename = filename as NSString
+                let matches = regex.matches(in: filename, options: [], range: NSRange(location: 0, length: nsFilename.length))
+
+                if let match = matches.first, match.numberOfRanges > 1 {
+                    let sequenceRange = match.range(at: 1)
+                    let sequenceString = nsFilename.substring(with: sequenceRange)
+                    if let sequence = Int(sequenceString) {
+                        maxSequence = max(maxSequence, sequence)
+                    }
+                }
+            }
+
+            return maxSequence + 1
+        } catch {
+            print("Error scanning directory for sequence number: \(error)")
+            return 1
+        }
+    }
+
     private func getFileName() -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        return "Recording_\(formatter.string(from: Date())).m4a"
+        formatter.dateFormat = "yyyyMMdd"
+        let dateString = formatter.string(from: Date())
+
+        let sequenceNumber = getNextSequenceNumber(for: dateString)
+        return "\(dateString)-\(String(format: "%02d", sequenceNumber)).m4a"
     }
     
     private func getFileURL(fileName: String) -> URL? {
