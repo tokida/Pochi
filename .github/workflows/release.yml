@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Pochi.app
+        run: ./build.sh
+
+      - name: Create ZIP archive
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent Pochi.app Pochi.zip
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            Pochi.zip \
+            --title "Pochi ${{ github.ref_name }}" \
+            --generate-notes

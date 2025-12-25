@@ -30,9 +30,10 @@
 
 ## 📥 Installation
 
-1.  Download the latest release.
-2.  Move `Pochi.app` to your **Applications** folder.
-3.  Double-click to launch.
+1.  Download the latest release from [GitHub Releases](https://github.com/tokida/Pochi/releases/latest).
+2.  Unzip the downloaded file.
+3.  Move `Pochi.app` to your **Applications** folder.
+4.  Double-click to launch.
     *   *Note:* You will be asked to grant **Microphone Access** on the first launch. Please click **"OK"**.
 
 ## 🚀 Usage
