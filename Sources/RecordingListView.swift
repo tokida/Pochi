@@ -70,10 +70,10 @@ struct RecordingListView: View {
             // Shortcut hints
             HStack(spacing: 12) {
                 Label("⌘⌥R Record", systemImage: "mic.fill")
-                Label("⌘⌥P Panel", systemImage: "rectangle.portrait.topthird.inset.filled")
+                Label("⌘⌥P Panel", systemImage: "macwindow")
             }
             .font(.caption2)
-            .foregroundColor(.tertiaryLabel)
+            .foregroundColor(Color(NSColor.tertiaryLabelColor))
             .padding(.horizontal, 12)
             .padding(.top, 6)
             .padding(.bottom, 2)
