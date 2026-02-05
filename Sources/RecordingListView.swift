@@ -67,6 +67,17 @@ struct RecordingListView: View {
             
             Divider()
             
+            // Shortcut hints
+            HStack(spacing: 12) {
+                Label("⌘⌥R Record", systemImage: "mic.fill")
+                Label("⌘⌥P Panel", systemImage: "rectangle.portrait.topthird.inset.filled")
+            }
+            .font(.caption2)
+            .foregroundColor(.tertiaryLabel)
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
+
             // Footer (Actions & Settings)
             HStack {
                 Button(action: {
@@ -78,19 +89,19 @@ struct RecordingListView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Open Recordings Folder")
-                
+
                 Spacer()
-                
+
                 Menu {
                     Toggle("Launch at Login", isOn: Binding(
                         get: { settingsManager.isLaunchAtLoginEnabled },
                         set: { settingsManager.toggleLaunchAtLogin(enabled: $0) }
                     ))
-                    
+
                     Toggle("Show Timer in Menu Bar", isOn: $settingsManager.showTimerInMenuBar)
-                    
+
                     Divider()
-                    
+
                     Button("Quit Pochi") {
                         NSApplication.shared.terminate(nil)
                     }
