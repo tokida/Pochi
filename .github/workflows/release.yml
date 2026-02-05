@@ -30,4 +30,29 @@ jobs:
           gh release create ${{ github.ref_name }} \
             Pochi.zip \
             --title "Pochi ${{ github.ref_name }}" \
-            --generate-notes
+            --notes "$(cat <<'NOTES'
+          ## Install
+
+          1. Download **Pochi.zip** and unzip
+          2. Move **Pochi.app** to `/Applications`
+          3. Open Terminal and run:
+
+          ```
+          xattr -cr /Applications/Pochi.app
+          ```
+
+          4. Open Pochi.app — grant microphone permission when prompted
+
+          > The `xattr -cr` command removes the macOS quarantine flag.
+          > This is required because the app is ad-hoc signed (no Apple Developer ID).
+
+          ## Shortcuts
+
+          | Key | Action |
+          |-----|--------|
+          | ⌘⌥R | Start / Stop recording |
+          | ⌘⌥P | Open / Close panel |
+
+          ---
+          NOTES
+          )"
