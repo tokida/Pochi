@@ -5,6 +5,10 @@
 *.swiftdoc
 *.abi.json
 
+# Swift Package Manager
+.build/
+Package.resolved
+
 # Temporary files
 .DS_Store
 AppIcon.png

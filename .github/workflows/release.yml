@@ -53,6 +53,19 @@ jobs:
           | ⌘⌥R | Start / Stop recording |
           | ⌘⌥P | Open / Close panel |
 
+          ## MCP Setup (Claude Code)
+
+          ```
+          eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
+          ```
+
+          ## MCP Setup (Claude Desktop)
+
+          Add to your Claude Desktop config:
+          ```
+          /Applications/Pochi.app/Contents/MacOS/Pochi --mcp-config
+          ```
+
           ---
           NOTES
           )"
