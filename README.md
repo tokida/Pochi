@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>A simple, lightweight voice recorder for macOS that lives in your menu bar.</strong>
+  <strong>A simple, lightweight voice recorder for macOS that lives in your menu bar.<br>Built-in MCP server for AI-powered recording management.</strong>
 </p>
 
 ---
@@ -27,6 +27,7 @@
 *   **Visual Indicators:**
     *   **Dynamic Icon:** The menu bar icon changes to a recording indicator and pulses based on your voice level.
 *   **High Quality AAC:** Saves in standard AAC (.m4a) format, perfect for importing into tools like **Google NotebookLM**.
+*   **MCP Server Built-in:** The app itself acts as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server. Control recording and manage files from Claude Desktop or Claude Code — no extra installation needed.
 
 ## 📥 Installation
 
@@ -65,14 +66,73 @@ Click the **Gear Icon** in the bottom right corner to access:
 *   **Show Timer in Menu Bar:** Toggle the real-time duration display in the menu bar.
 *   **Quit Pochi:** Completely exit the application.
 
+## 🤖 MCP Integration
+
+Pochi includes a built-in MCP server. The same binary runs as a GUI app normally, or as an MCP server when launched with `--mcp`.
+
+### Setup
+
+**Claude Code:**
+
+```bash
+eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
+```
+
+**Claude Desktop:**
+
+Run the following command and add the output to your Claude Desktop configuration:
+
+```bash
+/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-config
+```
+
+### Available Tools
+
+| Tool | Description | GUI Required |
+|------|-------------|:---:|
+| `start_recording` | Start audio recording | Yes |
+| `stop_recording` | Stop audio recording | Yes |
+| `get_recording_status` | Check current recording state | No |
+| `list_recordings` | List recordings (with date filter / limit) | No |
+| `get_recording_info` | Get file details (size, duration, date) | No |
+| `rename_recording` | Rename a recording file | No |
+| `delete_recording` | Move recording to Trash | No |
+| `search_recordings` | Search recordings by filename | No |
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│                 Pochi Binary                      │
+│                                                   │
+│   No flag   → GUI app (menu bar)                 │
+│   --mcp     → MCP server (stdio transport)       │
+│   --mcp-install → Claude Code setup helper       │
+│   --mcp-config  → Claude Desktop config output   │
+└──────────────────────────────────────────────────┘
+
+Process 1: Pochi (GUI)        Process 2: Pochi --mcp
+    ↕ NSDistributedNotification     ↕ stdio (MCP protocol)
+    └──── ~/Music/Pochi/ ──────────┘
+           Shared data layer
+```
+
+- **Recording control** (`start`/`stop`) requires the GUI app to be running. The MCP server sends a notification to the GUI process.
+- **File management** (`list`/`rename`/`delete`/`search`/`info`) works independently — the MCP server reads `~/Music/Pochi/` directly.
+- Deleted files are moved to **Finder Trash** (recoverable).
+
 ## ⚠️ Notes
 
 *   **Sleep Prevention:** Pochi automatically prevents your Mac from sleeping while recording is in progress.
 
 ## Requirements
 
-*   macOS 11.0 (Big Sur) or later
+*   macOS 13.0 (Ventura) or later
 *   Apple Silicon (M1/M2/M3) or Intel Mac
+
+### Build Requirements
+
+*   Swift 6.0+ (Xcode 16+)
 
 ## License
 
