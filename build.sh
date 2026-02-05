@@ -47,8 +47,32 @@ swiftc $SOURCES \
     -framework Carbon
 
 if [ $? -eq 0 ]; then
-    echo "Compilation successful."
-    
+    echo "Compilation successful (arm64)."
+
+    # Also build x86_64 if possible (for universal binary)
+    echo "Attempting x86_64 build..."
+    swiftc $SOURCES \
+        -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64" \
+        -target x86_64-apple-macosx11.0 \
+        -framework SwiftUI \
+        -framework AppKit \
+        -framework AVFoundation \
+        -framework IOKit \
+        -framework Carbon 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo "x86_64 build successful. Creating universal binary..."
+        lipo -create \
+            "$APP_BUNDLE/Contents/MacOS/$APP_NAME" \
+            "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64" \
+            -output "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_universal"
+        mv "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_universal" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+        rm "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64"
+        echo "Universal binary created."
+    else
+        echo "x86_64 build skipped (arm64 only)."
+    fi
+
     echo "Signing application..."
     # Ad-hoc signing is required for microphone permissions to work properly even locally
     codesign --force --deep --sign - "$APP_BUNDLE"
