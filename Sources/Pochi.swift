@@ -9,9 +9,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var settingsManager = SettingsManager()
     var popover: NSPopover!
     var cancellables = Set<AnyCancellable>()
-    
-    // HotKey Reference
+
+    // HotKey References
     var hotKeyRef: EventHotKeyRef?
+    var popoverHotKeyRef: EventHotKeyRef?
+
+    // Fallback positioning window for when status item is absorbed into mic menu
+    var anchorWindow: NSWindow?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Create the status item in the menu bar
@@ -32,31 +36,47 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         setupPopover()
         setupBindings()
-        registerHotKey() // Command + Option + R
+        registerHotKey() // Cmd+Opt+R: record, Cmd+Opt+P: popover
     }
     
     func registerHotKey() {
-        // Register global hotkey: Command + Option + R
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: OSType(kEventHotKeyPressed))
-        
-        // Install handler
+
+        // Install handler that dispatches based on hotkey ID
         InstallEventHandler(GetApplicationEventTarget(), { (nextHandler, theEvent, userData) -> OSStatus in
+            var hotKeyID = EventHotKeyID()
+            GetEventParameter(theEvent,
+                              EventParamName(kEventParamDirectObject),
+                              EventParamType(typeEventHotKeyID),
+                              nil,
+                              MemoryLayout<EventHotKeyID>.size,
+                              nil,
+                              &hotKeyID)
+
             if let delegate = NSApplication.shared.delegate as? AppDelegate {
-                delegate.toggleRecording()
+                switch hotKeyID.id {
+                case 1:
+                    delegate.toggleRecording()
+                case 2:
+                    delegate.togglePopover(nil)
+                default:
+                    break
+                }
             }
             return noErr
         }, 1, &eventType, nil, nil)
-        
-        // Define HotKey ID
-        let hotKeyID = EventHotKeyID(signature: OSType(0x52454344), id: 1) // 'RECD', 1
-        
-        // Modifiers: cmdKey + optionKey
+
         let modifiers = cmdKey | optionKey
-        
-        // KeyCode for 'R' is 15
+
+        // HotKey 1: Command + Option + R -> Toggle Recording
+        let recordHotKeyID = EventHotKeyID(signature: OSType(0x52454344), id: 1) // 'RECD'
         let kVK_ANSI_R = 0x0F
-        
-        RegisterEventHotKey(UInt32(kVK_ANSI_R), UInt32(modifiers), hotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
+        RegisterEventHotKey(UInt32(kVK_ANSI_R), UInt32(modifiers), recordHotKeyID, GetApplicationEventTarget(), 0, &hotKeyRef)
+
+        // HotKey 2: Command + Option + P -> Toggle Popover
+        let popoverHotKeyID = EventHotKeyID(signature: OSType(0x504F5055), id: 2) // 'POPU'
+        let kVK_ANSI_P = 0x23
+        RegisterEventHotKey(UInt32(kVK_ANSI_P), UInt32(modifiers), popoverHotKeyID, GetApplicationEventTarget(), 0, &popoverHotKeyRef)
     }
     
     func setupPopover() {
@@ -69,17 +89,59 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func togglePopover(_ sender: AnyObject?) {
-        if let button = statusItem.button {
-            if popover.isShown {
-                popover.performClose(sender)
-            } else {
-                audioRecorder.fetchRecordings() // Refresh list before showing
-                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                // Bring to front
-                NSApplication.shared.activate(ignoringOtherApps: true)
-                popover.contentViewController?.view.window?.makeKey()
-            }
+        if popover.isShown {
+            popover.performClose(sender)
+            cleanupAnchorWindow()
+            return
         }
+
+        audioRecorder.fetchRecordings() // Refresh list before showing
+
+        // Try to show anchored to the status item button
+        if let button = statusItem.button, button.window != nil, button.window?.isVisible == true {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        } else {
+            // Fallback: status item may be absorbed into macOS microphone menu.
+            // Show using a temporary anchor window near the menu bar.
+            showPopoverWithFallbackAnchor()
+        }
+
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    private func showPopoverWithFallbackAnchor() {
+        cleanupAnchorWindow()
+
+        guard let screen = NSScreen.main else { return }
+        let screenFrame = screen.frame
+        let visibleFrame = screen.visibleFrame
+        // Position anchor at top-right area (near where status items live)
+        let menuBarHeight = screenFrame.height - visibleFrame.height - visibleFrame.origin.y
+        let anchorX = screenFrame.maxX - 200
+        let anchorY = screenFrame.maxY - menuBarHeight
+
+        let window = NSWindow(
+            contentRect: NSRect(x: anchorX, y: anchorY, width: 1, height: 1),
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.level = .statusBar
+        window.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
+        window.orderFront(nil)
+        self.anchorWindow = window
+
+        if let contentView = window.contentView {
+            popover.show(relativeTo: contentView.bounds, of: contentView, preferredEdge: .minY)
+        }
+    }
+
+    private func cleanupAnchorWindow() {
+        anchorWindow?.orderOut(nil)
+        anchorWindow = nil
     }
     
     func setupBindings() {
