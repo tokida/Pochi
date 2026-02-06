@@ -2,7 +2,6 @@
 
 APP_NAME="Pochi"
 APP_BUNDLE="$APP_NAME.app"
-SOURCES="Sources/main.swift Sources/Pochi.swift Sources/AudioRecorder.swift Sources/RecordingListView.swift Sources/SettingsManager.swift"
 
 # Clean previous build
 rm -rf "$APP_BUNDLE"
@@ -27,61 +26,54 @@ if [ -f "AppIcon.png" ]; then
     sips -z 512 512   AppIcon.png --out AppIcon.iconset/icon_256x256@2x.png > /dev/null
     sips -z 512 512   AppIcon.png --out AppIcon.iconset/icon_512x512.png > /dev/null
     sips -z 1024 1024 AppIcon.png --out AppIcon.iconset/icon_512x512@2x.png > /dev/null
-    
+
     iconutil -c icns AppIcon.iconset
     cp AppIcon.icns "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
     rm -rf AppIcon.iconset
 fi
 
-echo "Compiling sources..."
-# Compile using swiftc
-# Note: We invoke swiftc with SDK path explicitly if needed, but default usually works.
-# We target macOS 11.0 to ensure SwiftUI/AVFoundation features are available.
-swiftc $SOURCES \
-    -o "$APP_BUNDLE/Contents/MacOS/$APP_NAME" \
-    -target arm64-apple-macosx11.0 \
-    -framework SwiftUI \
-    -framework AppKit \
-    -framework AVFoundation \
-    -framework IOKit \
-    -framework Carbon
+echo "Building with Swift Package Manager..."
 
-if [ $? -eq 0 ]; then
-    echo "Compilation successful (arm64)."
+# Build for arm64 (Apple Silicon)
+swift build -c release --arch arm64 2>&1
+ARM64_RESULT=$?
 
-    # Also build x86_64 if possible (for universal binary)
-    echo "Attempting x86_64 build..."
-    swiftc $SOURCES \
-        -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64" \
-        -target x86_64-apple-macosx11.0 \
-        -framework SwiftUI \
-        -framework AppKit \
-        -framework AVFoundation \
-        -framework IOKit \
-        -framework Carbon 2>/dev/null
-
-    if [ $? -eq 0 ]; then
-        echo "x86_64 build successful. Creating universal binary..."
-        lipo -create \
-            "$APP_BUNDLE/Contents/MacOS/$APP_NAME" \
-            "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64" \
-            -output "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_universal"
-        mv "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_universal" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
-        rm "$APP_BUNDLE/Contents/MacOS/${APP_NAME}_x86_64"
-        echo "Universal binary created."
-    else
-        echo "x86_64 build skipped (arm64 only)."
-    fi
-
-    echo "Signing application..."
-    # Ad-hoc signing is required for microphone permissions to work properly even locally
-    codesign --force --deep --sign - "$APP_BUNDLE"
-    
-    echo "------------------------------------------------"
-    echo "Build Complete: $APP_BUNDLE"
-    echo "To run, use: open $APP_BUNDLE"
-    echo "------------------------------------------------"
-else
-    echo "Compilation failed."
+if [ $ARM64_RESULT -ne 0 ]; then
+    echo "arm64 build failed."
     exit 1
 fi
+echo "arm64 build successful."
+
+# Copy arm64 binary
+cp .build/arm64-apple-macosx/release/Pochi "$APP_BUNDLE/Contents/MacOS/${APP_NAME}"
+
+# Attempt x86_64 build for universal binary
+echo "Attempting x86_64 build..."
+swift build -c release --arch x86_64 2>&1
+X86_RESULT=$?
+
+if [ $X86_RESULT -eq 0 ]; then
+    echo "x86_64 build successful. Creating universal binary..."
+    lipo -create \
+        .build/arm64-apple-macosx/release/Pochi \
+        .build/x86_64-apple-macosx/release/Pochi \
+        -output "$APP_BUNDLE/Contents/MacOS/${APP_NAME}"
+    echo "Universal binary created."
+else
+    echo "x86_64 build skipped (arm64 only)."
+fi
+
+echo "Signing application..."
+# Ad-hoc signing is required for microphone permissions to work properly even locally
+codesign --force --deep --sign - "$APP_BUNDLE"
+
+echo "------------------------------------------------"
+echo "Build Complete: $APP_BUNDLE"
+echo "To run, use: open $APP_BUNDLE"
+echo ""
+echo "MCP Setup (Claude Code):"
+echo "  eval \$(./$APP_BUNDLE/Contents/MacOS/$APP_NAME --mcp-install)"
+echo ""
+echo "MCP Setup (Claude Desktop):"
+echo "  ./$APP_BUNDLE/Contents/MacOS/$APP_NAME --mcp-config"
+echo "------------------------------------------------"
