@@ -167,7 +167,7 @@ class PochiToolHandler {
 
     // MARK: Tool Dispatch
 
-    func handle(_ params: CallTool) async throws -> CallTool.Result {
+    func handle(_ params: CallTool.Parameters) async throws -> CallTool.Result {
         switch params.name {
         case "start_recording":
             return await handleStartRecording()
@@ -278,8 +278,8 @@ class PochiToolHandler {
 
     // MARK: - File Management (direct filesystem access, no GUI needed)
 
-    private func handleListRecordings(params: CallTool) -> CallTool.Result {
-        let limit = params.arguments?["limit"]?.integerValue ?? 20
+    private func handleListRecordings(params: CallTool.Parameters) -> CallTool.Result {
+        let limit = Int(params.arguments?["limit"] ?? .null, strict: false) ?? 20
         let dateFilter = params.arguments?["date"]?.stringValue
 
         let fm = FileManager.default
@@ -331,7 +331,7 @@ class PochiToolHandler {
         return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
     }
 
-    private func handleGetRecordingInfo(params: CallTool) async -> CallTool.Result {
+    private func handleGetRecordingInfo(params: CallTool.Parameters) async -> CallTool.Result {
         guard let filename = params.arguments?["filename"]?.stringValue else {
             return .init(content: [.text("Missing required parameter: filename")], isError: true)
         }
@@ -346,7 +346,7 @@ class PochiToolHandler {
         var lines: [String] = ["File: \(filename)"]
 
         // File size and creation date
-        if let values = try? fileURL.resourceValues(forKeys: [.creationDateKey, .fileSizeKey]) {
+        if let values = try? fileURL.resourceValues(forKeys: Set<URLResourceKey>([.creationDateKey, .fileSizeKey])) {
             if let size = values.fileSize {
                 lines.append("Size: \(String(format: "%.2f MB", Double(size) / 1_048_576.0))")
             }
@@ -375,7 +375,7 @@ class PochiToolHandler {
         return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
     }
 
-    private func handleRenameRecording(params: CallTool) -> CallTool.Result {
+    private func handleRenameRecording(params: CallTool.Parameters) -> CallTool.Result {
         guard let filename = params.arguments?["filename"]?.stringValue,
               let newName = params.arguments?["new_name"]?.stringValue else {
             return .init(content: [.text("Missing required parameters: filename, new_name")], isError: true)
@@ -392,7 +392,7 @@ class PochiToolHandler {
         // Sanitize new name
         let invalidChars = CharacterSet(charactersIn: "/\\:*?\"<>|\0")
         let sanitized = newName.components(separatedBy: invalidChars).joined()
-        guard !sanitized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !sanitized.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
             return .init(content: [.text("Invalid new name.")], isError: true)
         }
 
@@ -412,7 +412,7 @@ class PochiToolHandler {
         }
     }
 
-    private func handleDeleteRecording(params: CallTool) -> CallTool.Result {
+    private func handleDeleteRecording(params: CallTool.Parameters) -> CallTool.Result {
         guard let filename = params.arguments?["filename"]?.stringValue else {
             return .init(content: [.text("Missing required parameter: filename")], isError: true)
         }
@@ -433,7 +433,7 @@ class PochiToolHandler {
         }
     }
 
-    private func handleSearchRecordings(params: CallTool) -> CallTool.Result {
+    private func handleSearchRecordings(params: CallTool.Parameters) -> CallTool.Result {
         guard let query = params.arguments?["query"]?.stringValue else {
             return .init(content: [.text("Missing required parameter: query")], isError: true)
         }
@@ -485,7 +485,7 @@ private extension Value {
     var integerValue: Int? {
         switch self {
         case .int(let v): return v
-        case .float(let v): return Int(v)
+        case .double(let v): return Int(v)
         case .string(let v): return Int(v)
         default: return nil
         }

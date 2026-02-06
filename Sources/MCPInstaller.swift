@@ -12,8 +12,8 @@ enum MCPInstaller {
     /// Usage: eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
     static func printInstallCommand() {
         let path = executablePath
-        // Output a claude mcp add command
-        print("claude mcp add pochi \"\(path)\" --args \"--mcp\"")
+        // Output a claude mcp add command (args go after --)
+        print("claude mcp add pochi -- \"\(path)\" --mcp")
     }
 
     /// Print MCP configuration JSON for Claude Desktop or other MCP clients
