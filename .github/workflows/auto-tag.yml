@@ -1,4 +1,4 @@
-name: Auto Tag on Merge
+name: Auto Tag and Release on Merge
 
 on:
   pull_request:
@@ -13,6 +13,8 @@ jobs:
     # PRがマージされた場合のみ実行（クローズのみは除外）
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
 
     steps:
       - name: Checkout code
@@ -58,3 +60,69 @@ jobs:
           echo "- **Tag:** \`${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **PR:** #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Commit:** \`${{ github.event.pull_request.merge_commit_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    # GITHUB_TOKENで作成したタグはon:push:tagsを発火しないため、
+    # タグ作成後に同一ワークフロー内でビルド＆リリースを実行する
+    needs: tag
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+
+      - name: Build Pochi.app
+        run: ./build.sh
+
+      - name: Create ZIP archive
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent Pochi.app Pochi.zip
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ needs.tag.outputs.tag }} \
+            Pochi.zip \
+            --title "Pochi ${{ needs.tag.outputs.tag }}" \
+            --notes "$(cat <<'NOTES'
+          ## Install
+
+          1. Download **Pochi.zip** and unzip
+          2. Move **Pochi.app** to `/Applications`
+          3. Open Terminal and run:
+
+          ```
+          xattr -cr /Applications/Pochi.app
+          ```
+
+          4. Open Pochi.app — grant microphone permission when prompted
+
+          > The `xattr -cr` command removes the macOS quarantine flag.
+          > This is required because the app is ad-hoc signed (no Apple Developer ID).
+
+          ## Shortcuts
+
+          | Key | Action |
+          |-----|--------|
+          | ⌘⌥R | Start / Stop recording |
+          | ⌘⌥P | Open / Close panel |
+
+          ## MCP Setup (Claude Code)
+
+          ```
+          eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
+          ```
+
+          ## MCP Setup (Claude Desktop)
+
+          Add to your Claude Desktop config:
+          ```
+          /Applications/Pochi.app/Contents/MacOS/Pochi --mcp-config
+          ```
+
+          ---
+          NOTES
+          )"
