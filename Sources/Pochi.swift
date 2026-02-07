@@ -27,6 +27,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.imagePosition = .imageLeft
             // Try to load the image
             if let image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Record") {
+                image.isTemplate = true // ダークモード時にmacOSが自動で白色に切り替える
                 button.image = image
                 button.title = "" // Clear title if image loads successfully
             }
@@ -240,8 +241,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             updateTimeDisplay(time: 0)
         } else {
             // Reset icon and title when stopped
-            button.image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Record")
-            button.contentTintColor = .labelColor
+            if let image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Record") {
+                image.isTemplate = true // ダークモード時にmacOSが自動で白色に切り替える
+                button.image = image
+            }
+            button.contentTintColor = nil // templateモードではOS任せにする
             button.title = ""
         }
     }

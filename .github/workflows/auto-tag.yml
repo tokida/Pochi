@@ -1,0 +1,60 @@
+name: Auto Tag on Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    # PRがマージされた場合のみ実行（クローズのみは除外）
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate date-based tag
+        id: tag
+        run: |
+          # 日付ベースのタグを生成（UTC）
+          DATE=$(date -u +%Y.%m.%d)
+          BASE_TAG="v${DATE}"
+
+          # 同日に既存タグがあれば連番を付与
+          EXISTING=$(git tag -l "${BASE_TAG}*" | sort -V)
+          if [ -z "$EXISTING" ]; then
+            TAG="${BASE_TAG}"
+          else
+            # 既存タグの最大連番を取得
+            LAST=$(echo "$EXISTING" | tail -1)
+            if [ "$LAST" = "$BASE_TAG" ]; then
+              TAG="${BASE_TAG}.1"
+            else
+              # v2026.02.07.N -> N を取得してインクリメント
+              NUM=$(echo "$LAST" | grep -oE '\.[0-9]+$' | tr -d '.')
+              NEXT=$((NUM + 1))
+              TAG="${BASE_TAG}.${NEXT}"
+            fi
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Generated tag: ${TAG}"
+
+      - name: Create and push tag
+        run: |
+          git tag "${{ steps.tag.outputs.tag }}" "${{ github.event.pull_request.merge_commit_sha }}"
+          git push origin "${{ steps.tag.outputs.tag }}"
+
+      - name: Summary
+        run: |
+          echo "## Tag Created" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Tag:** \`${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **PR:** #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** \`${{ github.event.pull_request.merge_commit_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
