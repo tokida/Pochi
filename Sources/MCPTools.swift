@@ -278,8 +278,40 @@ class PochiToolHandler {
 
     // MARK: - File Management (direct filesystem access, no GUI needed)
 
+    /// Sanitize filename to prevent path traversal attacks
+    /// Returns the sanitized filename (basename only) or nil if invalid
+    private func sanitizeFilename(_ filename: String) -> String? {
+        // Reject if contains path separators or parent directory references
+        if filename.contains("/") || filename.contains("\\") {
+            return nil
+        }
+        if filename == "." || filename == ".." {
+            return nil
+        }
+
+        // Use NSString to get pure string-based lastPathComponent (no filesystem access)
+        let basename = (filename as NSString).lastPathComponent
+
+        // Reject if empty
+        let trimmed = basename.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return nil
+        }
+
+        // Final safety check: verify path stays within allowed directory
+        let testURL = PochiDirectory.url.appendingPathComponent(basename)
+        let allowedPath = PochiDirectory.url.standardized.path
+        guard testURL.standardized.path.hasPrefix(allowedPath) else {
+            return nil
+        }
+
+        return basename
+    }
+
     private func handleListRecordings(params: CallTool.Parameters) -> CallTool.Result {
-        let limit = Int(params.arguments?["limit"] ?? .null, strict: false) ?? 20
+        // Validate and clamp limit to reasonable range (1-100)
+        let rawLimit = Int(params.arguments?["limit"] ?? .null, strict: false) ?? 20
+        let limit = max(1, min(rawLimit, 100))
         let dateFilter = params.arguments?["date"]?.stringValue
 
         let fm = FileManager.default
@@ -332,8 +364,13 @@ class PochiToolHandler {
     }
 
     private func handleGetRecordingInfo(params: CallTool.Parameters) async -> CallTool.Result {
-        guard let filename = params.arguments?["filename"]?.stringValue else {
+        guard let rawFilename = params.arguments?["filename"]?.stringValue else {
             return .init(content: [.text("Missing required parameter: filename")], isError: true)
+        }
+
+        // Sanitize filename to prevent path traversal
+        guard let filename = sanitizeFilename(rawFilename) else {
+            return .init(content: [.text("Invalid filename")], isError: true)
         }
 
         let fileURL = PochiDirectory.url.appendingPathComponent(filename)
@@ -376,9 +413,14 @@ class PochiToolHandler {
     }
 
     private func handleRenameRecording(params: CallTool.Parameters) -> CallTool.Result {
-        guard let filename = params.arguments?["filename"]?.stringValue,
+        guard let rawFilename = params.arguments?["filename"]?.stringValue,
               let newName = params.arguments?["new_name"]?.stringValue else {
             return .init(content: [.text("Missing required parameters: filename, new_name")], isError: true)
+        }
+
+        // Sanitize filename to prevent path traversal
+        guard let filename = sanitizeFilename(rawFilename) else {
+            return .init(content: [.text("Invalid filename")], isError: true)
         }
 
         let fm = FileManager.default
@@ -413,8 +455,13 @@ class PochiToolHandler {
     }
 
     private func handleDeleteRecording(params: CallTool.Parameters) -> CallTool.Result {
-        guard let filename = params.arguments?["filename"]?.stringValue else {
+        guard let rawFilename = params.arguments?["filename"]?.stringValue else {
             return .init(content: [.text("Missing required parameter: filename")], isError: true)
+        }
+
+        // Sanitize filename to prevent path traversal
+        guard let filename = sanitizeFilename(rawFilename) else {
+            return .init(content: [.text("Invalid filename")], isError: true)
         }
 
         let fm = FileManager.default

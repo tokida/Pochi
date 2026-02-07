@@ -39,6 +39,8 @@ class AudioRecorder: NSObject, ObservableObject {
 
     deinit {
         directoryWatcher?.cancel()
+        // Remove distributed notification observers to prevent memory leak
+        DistributedNotificationCenter.default().removeObserver(self)
     }
 
     private func createDirectory() {
@@ -230,10 +232,10 @@ class AudioRecorder: NSObject, ObservableObject {
 
     private func startTimer() {
         recordingTime = 0
-        // Update more frequently for smooth animation (e.g. 0.1s)
-        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+        // Update at 100ms interval (10 Hz) - good balance between smoothness and CPU usage
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            self.recordingTime += 0.05
+            self.recordingTime += 0.1
 
             if let recorder = self.audioRecorder {
                 recorder.updateMeters()
