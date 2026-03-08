@@ -31,7 +31,16 @@ if arguments.contains("--mcp-config") {
     exit(0)
 }
 
-// Normal GUI mode
+// Normal GUI mode — Single instance check
+PochiDirectory.ensureExists()
+let lockFilePath = PochiDirectory.url.appendingPathComponent(".pochi-gui.lock").path
+let lockFD = open(lockFilePath, O_WRONLY | O_CREAT, 0o644)
+if lockFD < 0 || flock(lockFD, LOCK_EX | LOCK_NB) != 0 {
+    if lockFD >= 0 { close(lockFD) }
+    exit(0)
+}
+// lockFD は閉じない — プロセス終了時に自動解放される
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

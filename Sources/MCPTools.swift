@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import AVFoundation
+import Speech
 
 // MARK: - Notification Names (shared between GUI and MCP)
 
@@ -63,7 +64,7 @@ class PochiToolHandler {
         [
             Tool(
                 name: "start_recording",
-                description: "Start audio recording via Pochi GUI app. The Pochi GUI app must be running.",
+                description: "Start audio recording via Pochi GUI app. Automatically launches the GUI if not running.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([:]),
@@ -71,7 +72,7 @@ class PochiToolHandler {
             ),
             Tool(
                 name: "stop_recording",
-                description: "Stop the current audio recording via Pochi GUI app.",
+                description: "Stop the current audio recording via Pochi GUI app. Automatically launches the GUI if not running.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([:]),
@@ -162,6 +163,20 @@ class PochiToolHandler {
                     "required": .array([.string("query")]),
                 ])
             ),
+            Tool(
+                name: "get_transcription",
+                description: "Get transcription text of an audio recording. Returns cached result if available, otherwise runs speech recognition.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "filename": .object([
+                            "type": .string("string"),
+                            "description": .string("The filename of the recording to transcribe (e.g. '20260218-01.m4a')."),
+                        ]),
+                    ]),
+                    "required": .array([.string("filename")]),
+                ])
+            ),
         ]
     }
 
@@ -185,14 +200,65 @@ class PochiToolHandler {
             return handleDeleteRecording(params: params)
         case "search_recordings":
             return handleSearchRecordings(params: params)
+        case "get_transcription":
+            return await handleGetTranscription(params: params)
         default:
             return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)
+        }
+    }
+
+    // MARK: - GUI Auto-Launch Helper
+
+    private func ensureGUIRunning() async -> Bool {
+        let lockPath = PochiDirectory.url.appendingPathComponent(".pochi-gui.lock").path
+        let fd = open(lockPath, O_WRONLY | O_CREAT, 0o644)
+        guard fd >= 0 else { return false }
+
+        if flock(fd, LOCK_EX | LOCK_NB) == 0 {
+            // ロック取得成功 = GUI未起動
+            flock(fd, LOCK_UN)
+            close(fd)
+
+            let binaryPath = ProcessInfo.processInfo.arguments[0]
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: binaryPath)
+            process.arguments = []
+            process.standardInput = FileHandle.nullDevice
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+
+            // GUI起動待ち（最大5秒）
+            for _ in 0..<50 {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                let checkFD = open(lockPath, O_WRONLY)
+                guard checkFD >= 0 else { continue }
+                if flock(checkFD, LOCK_EX | LOCK_NB) != 0 {
+                    close(checkFD)
+                    return true  // GUIがロック取得 = 起動完了
+                }
+                flock(checkFD, LOCK_UN)
+                close(checkFD)
+            }
+            return false
+        } else {
+            close(fd)
+            return true  // 既に起動中
         }
     }
 
     // MARK: - Recording Control (via NSDistributedNotification → GUI)
 
     private func handleStartRecording() async -> CallTool.Result {
+        // Ensure GUI is running (auto-launch if needed)
+        let guiRunning = await ensureGUIRunning()
+        if !guiRunning {
+            return .init(
+                content: [.text("Failed to launch Pochi GUI app.")],
+                isError: true
+            )
+        }
+
         // Check if already recording
         if let status = PochiStatus.read(), status.isRecording {
             return .init(
@@ -219,12 +285,21 @@ class PochiToolHandler {
         }
 
         return .init(
-            content: [.text("Recording command sent, but could not confirm. Is the Pochi GUI app running?")],
+            content: [.text("Recording command sent, but could not confirm start.")],
             isError: false
         )
     }
 
     private func handleStopRecording() async -> CallTool.Result {
+        // Ensure GUI is running
+        let guiRunning = await ensureGUIRunning()
+        if !guiRunning {
+            return .init(
+                content: [.text("Failed to launch Pochi GUI app.")],
+                isError: true
+            )
+        }
+
         // Check if actually recording
         if let status = PochiStatus.read(), !status.isRecording {
             return .init(content: [.text("Not currently recording.")], isError: false)
@@ -448,6 +523,10 @@ class PochiToolHandler {
 
         do {
             try fm.moveItem(at: oldURL, to: newURL)
+            TranscriptionDirectory.renameTranscript(
+                oldAudioFilename: filename,
+                newAudioFilename: newURL.lastPathComponent
+            )
             return .init(content: [.text("Renamed: \(filename) -> \(newURL.lastPathComponent)")], isError: false)
         } catch {
             return .init(content: [.text("Rename failed: \(error.localizedDescription)")], isError: true)
@@ -523,6 +602,39 @@ class PochiToolHandler {
         }
 
         return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
+    }
+
+    // MARK: - Transcription
+
+    private func handleGetTranscription(params: CallTool.Parameters) async -> CallTool.Result {
+        guard let rawFilename = params.arguments?["filename"]?.stringValue else {
+            return .init(content: [.text("Missing required parameter: filename")], isError: true)
+        }
+
+        guard let filename = sanitizeFilename(rawFilename) else {
+            return .init(content: [.text("Invalid filename")], isError: true)
+        }
+
+        let fileURL = PochiDirectory.url.appendingPathComponent(filename)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return .init(content: [.text("File not found: \(filename)")], isError: true)
+        }
+
+        do {
+            let transcriber = try SpeechTranscriber()
+            let result = try await transcriber.transcribe(filename: filename)
+
+            let formatter = ISO8601DateFormatter()
+            var lines: [String] = []
+            lines.append("File: \(result.sourceFile)")
+            lines.append("Transcribed at: \(formatter.string(from: result.transcribedAt))")
+            lines.append("---")
+            lines.append(result.text)
+
+            return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
+        } catch {
+            return .init(content: [.text("Transcription failed: \(error.localizedDescription)")], isError: true)
+        }
     }
 }
 

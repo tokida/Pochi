@@ -130,36 +130,71 @@ struct RecordingRow: View {
     @ObservedObject var audioRecorder: AudioRecorder
     let recording: Recording
     @State private var filename: String
-    
+
+    private var isTranscribing: Bool { audioRecorder.transcribingFiles.contains(recording.fileName) }
+    private var isTranscribed: Bool { audioRecorder.transcribedFiles.contains(recording.fileName) }
+
     init(audioRecorder: AudioRecorder, recording: Recording) {
         self.audioRecorder = audioRecorder
         self.recording = recording
-        // Initialize with filename WITHOUT extension
         _filename = State(initialValue: recording.fileNameWithoutExtension)
     }
-    
+
     var body: some View {
         HStack {
             Image(systemName: "waveform")
                 .foregroundColor(.secondary)
-            
+
             TextField("Filename", text: $filename, onCommit: {
-                // Check if name actually changed
                 if filename != recording.fileNameWithoutExtension {
-                    // Logic: The audioRecorder.renameRecording method handles appending the extension
-                    // if it is missing. We are passing just the name here, so it will append extension.
-                    // This effectively prevents extension modification by the user since they only edit the name part.
                     audioRecorder.renameRecording(recording, newName: filename)
                 }
             })
             .textFieldStyle(.plain)
-            
+
             Spacer()
-            
+
+            // txt badge
+            Button(action: {
+                if isTranscribed {
+                    let url = TranscriptionDirectory.transcriptURL(for: recording.fileName)
+                    NSWorkspace.shared.open(url)
+                } else if !isTranscribing {
+                    audioRecorder.transcribeRecording(fileName: recording.fileName)
+                }
+            }) {
+                HStack(spacing: 2) {
+                    if isTranscribing {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
+                    Text("txt")
+                        .font(.caption)
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(isTranscribing ? .accentColor : (isTranscribed ? .primary : Color(NSColor.tertiaryLabelColor)))
+            .disabled(isTranscribing)
+
+            // Duration
+            if let duration = recording.duration {
+                Text(durationString(from: duration))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            // Extension
             Text(recording.fileURL.pathExtension)
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .padding(.vertical, 4)
+    }
+
+    private func durationString(from interval: TimeInterval) -> String {
+        let totalSeconds = Int(interval)
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
