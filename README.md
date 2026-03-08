@@ -82,7 +82,13 @@ Pochi includes a built-in MCP server. The same binary runs as a GUI app normally
 eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
 ```
 
-**Claude Desktop:**
+**Claude Desktop (One-Click Install):**
+
+1. Download `pochi.mcpb` from [GitHub Releases](https://github.com/tokida/Pochi/releases/latest).
+2. Open Claude Desktop → Settings → Install Extension...
+3. Select the downloaded `pochi.mcpb` file.
+
+**Claude Desktop (Manual):**
 
 Run the following command and add the output to your Claude Desktop configuration:
 
