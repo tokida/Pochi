@@ -17,9 +17,12 @@
 *   **Menu Bar Resident:** Always accessible from the menu bar (next to the clock), keeping your Dock clean.
 *   **Pop-over UI:** Click the icon to see your recent recordings, rename them, or manage settings instantly.
 *   **One-Touch Recording:** Start/Stop recording instantly via Global Hotkey (`Cmd+Opt+R`) or the big record button in the menu.
+*   **Speech-to-Text:** Automatic transcription after recording using Apple's on-device speech recognition (Japanese). Results are cached as JSON in `~/Music/Pochi/transcripts/`. Long audio files are automatically split into chunks for reliable processing.
 *   **File Management:**
     *   **Rename List:** Rename your recorded files directly from the list (extensions are preserved automatically).
     *   **One-Click Finder Access:** Click the folder icon to instantly reveal your recordings in Finder.
+    *   **Duration Display:** Each recording shows its duration (`mm:ss`) in the list.
+    *   **Transcription Badge:** A `txt` badge indicates transcription status — click to trigger or open the transcript.
 *   **Minimalist & Configurable:**
     *   **Gear Menu:** A clean settings menu tucked away under a gear icon.
     *   **Launch at Login:** Option to automatically start Pochi when you log in to your Mac.
@@ -27,6 +30,7 @@
 *   **Visual Indicators:**
     *   **Dynamic Icon:** The menu bar icon changes to a recording indicator and pulses based on your voice level.
 *   **High Quality AAC:** Saves in standard AAC (.m4a) format, perfect for importing into tools like **Google NotebookLM**.
+*   **Single Instance:** Automatic duplicate prevention — only one GUI instance can run at a time.
 *   **MCP Server Built-in:** The app itself acts as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server. Control recording and manage files from Claude Desktop or Claude Code — no extra installation needed.
 
 ## 📥 Installation
@@ -35,7 +39,7 @@
 2.  Unzip the downloaded file.
 3.  Move `Pochi.app` to your **Applications** folder.
 4.  Double-click to launch.
-    *   *Note:* You will be asked to grant **Microphone Access** on the first launch. Please click **"OK"**.
+    *   *Note:* You will be asked to grant **Microphone Access** and **Speech Recognition** permission on the first launch. Please click **"OK"**.
 
 ## 🚀 Usage
 
@@ -90,14 +94,15 @@ Run the following command and add the output to your Claude Desktop configuratio
 
 | Tool | Description | GUI Required |
 |------|-------------|:---:|
-| `start_recording` | Start audio recording | Yes |
-| `stop_recording` | Stop audio recording | Yes |
+| `start_recording` | Start audio recording (auto-launches GUI if needed) | Auto |
+| `stop_recording` | Stop audio recording (auto-launches GUI if needed) | Auto |
 | `get_recording_status` | Check current recording state | No |
 | `list_recordings` | List recordings (with date filter / limit) | No |
 | `get_recording_info` | Get file details (size, duration, date) | No |
 | `rename_recording` | Rename a recording file | No |
 | `delete_recording` | Move recording to Trash | No |
 | `search_recordings` | Search recordings by filename | No |
+| `get_transcription` | Get speech-to-text transcription of a recording | No |
 
 ### Architecture
 
@@ -117,8 +122,9 @@ Process 1: Pochi (GUI)        Process 2: Pochi --mcp
            Shared data layer
 ```
 
-- **Recording control** (`start`/`stop`) requires the GUI app to be running. The MCP server sends a notification to the GUI process.
+- **Recording control** (`start`/`stop`) auto-launches the GUI app if not running. The MCP server sends a notification to the GUI process.
 - **File management** (`list`/`rename`/`delete`/`search`/`info`) works independently — the MCP server reads `~/Music/Pochi/` directly.
+- **Transcription** (`get_transcription`) runs on-device speech recognition and caches results in `~/Music/Pochi/transcripts/`.
 - Deleted files are moved to **Finder Trash** (recoverable).
 
 ## ⚠️ Notes

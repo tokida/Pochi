@@ -1,12 +1,15 @@
 import Foundation
 import AVFoundation
+import CoreMedia
 import IOKit.pwr_mgt
 import SwiftUI
+import Speech
 
 struct Recording: Identifiable, Equatable {
     let id = UUID()
     let fileURL: URL
     let createdAt: Date
+    let duration: TimeInterval?
 
     var fileName: String {
         fileURL.lastPathComponent
@@ -23,6 +26,11 @@ class AudioRecorder: NSObject, ObservableObject {
     @Published var recordingTime: TimeInterval = 0
     @Published var audioLevel: Float = 0.0
     @Published var recordings: [Recording] = []
+    @Published var transcribingFiles: Set<String> = []  // 文字起こし中のファイル名
+    @Published var transcribedFiles: Set<String> = []   // 文字起こし済みファイル名
+
+    private var transcriptionQueue: [String] = []  // 待機中ファイル名
+    private var isTranscriptionRunning = false       // 実行中フラグ
 
     private var timer: Timer?
     private var sleepAssertionID: IOPMAssertionID = 0
@@ -68,11 +76,22 @@ class AudioRecorder: NSObject, ObservableObject {
 
             let audioFiles = fileURLs.filter { ["m4a", "mp3", "wav"].contains($0.pathExtension) }
 
+            let recordings = audioFiles.map { url -> Recording in
+                let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
+                let asset = AVURLAsset(url: url)
+                let duration: TimeInterval? = {
+                    let cmTime = asset.duration
+                    let seconds = CMTimeGetSeconds(cmTime)
+                    return seconds.isNaN ? nil : seconds
+                }()
+                return Recording(fileURL: url, createdAt: creationDate, duration: duration)
+            }.sorted(by: { $0.createdAt > $1.createdAt })
+
             DispatchQueue.main.async {
-                self.recordings = audioFiles.map { url in
-                    let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
-                    return Recording(fileURL: url, createdAt: creationDate)
-                }.sorted(by: { $0.createdAt > $1.createdAt })
+                self.recordings = recordings
+                self.transcribedFiles = Set(recordings.compactMap { rec in
+                    TranscriptionDirectory.hasTranscript(for: rec.fileName) ? rec.fileName : nil
+                })
             }
         } catch {
             print("Error fetching recordings: \(error)")
@@ -111,6 +130,18 @@ class AudioRecorder: NSObject, ObservableObject {
 
         do {
             try fileManager.moveItem(at: recording.fileURL, to: finalURL)
+            let oldName = recording.fileURL.lastPathComponent
+            let newName = finalURL.lastPathComponent
+            TranscriptionDirectory.renameTranscript(
+                oldAudioFilename: oldName,
+                newAudioFilename: newName
+            )
+            if transcribingFiles.remove(oldName) != nil {
+                transcribingFiles.insert(newName)
+            }
+            if transcribedFiles.remove(oldName) != nil {
+                transcribedFiles.insert(newName)
+            }
             fetchRecordings()
         } catch {
             print("Error renaming file: \(error.localizedDescription)")
@@ -136,6 +167,39 @@ class AudioRecorder: NSObject, ObservableObject {
         if let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first {
             let saveUrl = musicDirectory.appendingPathComponent("Pochi")
             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: saveUrl.path)
+        }
+    }
+
+    func transcribeRecording(fileName: String) {
+        guard !transcribingFiles.contains(fileName),
+              !transcribedFiles.contains(fileName) else { return }
+        transcribingFiles.insert(fileName)
+        transcriptionQueue.append(fileName)
+        processNextTranscription()
+    }
+
+    private func processNextTranscription() {
+        guard !isTranscriptionRunning, let fileName = transcriptionQueue.first else { return }
+        isTranscriptionRunning = true
+        transcriptionQueue.removeFirst()
+        Task.detached(priority: .utility) { [weak self] in
+            do {
+                let transcriber = try SpeechTranscriber()
+                _ = try await transcriber.transcribe(filename: fileName)
+                await MainActor.run {
+                    self?.transcribingFiles.remove(fileName)
+                    self?.transcribedFiles.insert(fileName)
+                    self?.isTranscriptionRunning = false
+                    self?.processNextTranscription()
+                }
+            } catch {
+                print("Transcription failed: \(error.localizedDescription)")
+                await MainActor.run {
+                    self?.transcribingFiles.remove(fileName)
+                    self?.isTranscriptionRunning = false
+                    self?.processNextTranscription()
+                }
+            }
         }
     }
 
@@ -169,6 +233,7 @@ class AudioRecorder: NSObject, ObservableObject {
     }
 
     func stopRecording() {
+        let recordedFileURL = audioRecorder?.url
         audioRecorder?.stop()
         isRecording = false
         stopTimer()
@@ -177,6 +242,11 @@ class AudioRecorder: NSObject, ObservableObject {
         writeStatus()
         print("Recording stopped.")
         fetchRecordings()
+
+        // Auto-transcription in background (non-blocking)
+        if let fileURL = recordedFileURL {
+            transcribeRecording(fileName: fileURL.lastPathComponent)
+        }
     }
 
     private func getNextSequenceNumber(for dateString: String) -> Int {

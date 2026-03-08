@@ -18,6 +18,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>音声を録音して保存するためにマイクを使用します。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>録音した音声をテキストに書き起こすために音声認識を使用します。</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>CFBundleIconFile</key>
