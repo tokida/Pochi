@@ -17,6 +17,8 @@ AppIcon.iconset/
 
 # User specific
 xcuserdata/
+.claude/
+.vscode/
 
 Pochi.zip
 Pochi 2.zip
