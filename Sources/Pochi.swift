@@ -168,6 +168,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
             
+        audioRecorder.$autoStopAt
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                if let self = self {
+                    self.updateTimeDisplay(time: self.audioRecorder.recordingTime)
+                }
+            }
+            .store(in: &cancellables)
+
         // Settings update binding
         settingsManager.$showTimerInMenuBar
             .receive(on: RunLoop.main)
@@ -182,12 +191,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func updateTimeDisplay(time: TimeInterval) {
         guard let button = statusItem.button else { return }
-        
+
         if audioRecorder.isRecording && settingsManager.showTimerInMenuBar {
             let minutes = Int(time) / 60
             let seconds = Int(time) % 60
-            button.title = String(format: " %02d:%02d", minutes, seconds)
-            // Use monospaced digit font for stability
+            var title = String(format: " %02d:%02d", minutes, seconds)
+            if let stopAt = audioRecorder.autoStopAt {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "HH:mm"
+                title += " →\(formatter.string(from: stopAt))"
+            }
+            button.title = title
             button.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
         } else {
             button.title = ""
