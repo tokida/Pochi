@@ -17,7 +17,7 @@
 *   **Menu Bar Resident:** Always accessible from the menu bar (next to the clock), keeping your Dock clean.
 *   **Pop-over UI** `(v1.1.0)`: Click the icon to see your recent recordings, rename them, or manage settings instantly.
 *   **One-Touch Recording:** Start/Stop recording instantly via Global Hotkey (`Cmd+Opt+R`) or the big record button in the menu.
-*   **Timed Auto-Stop Recording** `(v2026.05.27)`: Click the record button to choose a stop duration or exact time. Options include +15m, +30m, +60m, or the next :00/:15/:30 boundary. The menu bar shows the scheduled stop time while recording (e.g., `00:42 →13:30`).
+*   **Timed Auto-Stop Recording** `(v2026.05.27)`: Click the record button to choose a stop duration or exact time. Options include +15m, +30m, +60m, or the next :00/:15/:30 boundary. The menu bar shows the scheduled stop time while recording (e.g., `🔴 00:42 →13:30`).
 *   **Speech-to-Text** `(v2026.03.08)`: Automatic transcription after recording using Apple's on-device speech recognition (Japanese). Results are cached as JSON in `~/Music/Pochi/transcripts/`. Long audio files are automatically split into chunks for reliable processing.
 *   **File Management** `(v1.1.0)`:
     *   **Rename List:** Rename your recorded files directly from the list (extensions are preserved automatically).
