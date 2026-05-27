@@ -28,6 +28,19 @@ jobs:
           chmod +x build-mcpb.sh
           ./build-mcpb.sh
 
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log ${PREV_TAG}..HEAD --oneline --no-merges --pretty=format:"- %s")
+          else
+            CHANGES=$(git log --oneline --no-merges --pretty=format:"- %s")
+          fi
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,27 +49,33 @@ jobs:
             Pochi.zip \
             pochi.mcpb \
             --title "Pochi ${{ github.ref_name }}" \
-            --notes "$(cat <<'NOTES'
+            --notes "$(cat <<NOTES
+          ## What's New
+
+          ${{ steps.notes.outputs.changes }}
+
+          ---
+
           ## Install
 
           1. Download **Pochi.zip** and unzip
-          2. Move **Pochi.app** to `/Applications`
+          2. Move **Pochi.app** to \`/Applications\`
           3. Open Terminal and run:
 
-          ```
+          \`\`\`
           xattr -cr /Applications/Pochi.app
-          ```
+          \`\`\`
 
           4. Open Pochi.app — grant microphone permission when prompted
 
-          > The `xattr -cr` command removes the macOS quarantine flag.
+          > The \`xattr -cr\` command removes the macOS quarantine flag.
           > This is required because the app is ad-hoc signed (no Apple Developer ID).
 
           ## MCP Extension (.mcpb) — Claude Desktop One-Click Install
 
           1. Download **pochi.mcpb**
           2. Claude Desktop → Settings → Install Extension...
-          3. Select the downloaded `pochi.mcpb`
+          3. Select the downloaded \`pochi.mcpb\`
 
           ## Shortcuts
 
@@ -67,16 +86,16 @@ jobs:
 
           ## MCP Setup (Claude Code)
 
-          ```
-          eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
-          ```
+          \`\`\`
+          eval \$(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
+          \`\`\`
 
           ## MCP Setup (Claude Desktop — Manual)
 
           Add to your Claude Desktop config:
-          ```
+          \`\`\`
           /Applications/Pochi.app/Contents/MacOS/Pochi --mcp-config
-          ```
+          \`\`\`
 
           ---
           NOTES
