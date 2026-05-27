@@ -64,10 +64,19 @@ class PochiToolHandler {
         [
             Tool(
                 name: "start_recording",
-                description: "Start audio recording via Pochi GUI app. Automatically launches the GUI if not running.",
+                description: "Start audio recording via Pochi GUI app. Automatically launches the GUI if not running. Optionally auto-stop after a duration or at a specific time.",
                 inputSchema: .object([
                     "type": .string("object"),
-                    "properties": .object([:]),
+                    "properties": .object([
+                        "duration": .object([
+                            "type": .string("number"),
+                            "description": .string("Auto-stop after this many seconds (e.g. 1800 for 30 minutes)."),
+                        ]),
+                        "stop_at": .object([
+                            "type": .string("string"),
+                            "description": .string("ISO 8601 datetime to stop recording (e.g. \"2026-05-27T13:30:00+09:00\"). Takes priority over duration."),
+                        ]),
+                    ]),
                 ])
             ),
             Tool(
@@ -185,7 +194,7 @@ class PochiToolHandler {
     func handle(_ params: CallTool.Parameters) async throws -> CallTool.Result {
         switch params.name {
         case "start_recording":
-            return await handleStartRecording()
+            return await handleStartRecording(params: params)
         case "stop_recording":
             return await handleStopRecording()
         case "get_recording_status":
@@ -249,7 +258,7 @@ class PochiToolHandler {
 
     // MARK: - Recording Control (via NSDistributedNotification → GUI)
 
-    private func handleStartRecording() async -> CallTool.Result {
+    private func handleStartRecording(params: CallTool.Parameters) async -> CallTool.Result {
         // Ensure GUI is running (auto-launch if needed)
         let guiRunning = await ensureGUIRunning()
         if !guiRunning {
@@ -267,20 +276,33 @@ class PochiToolHandler {
             )
         }
 
-        // Send notification to GUI process
+        // Parse optional stop time (stop_at takes priority over duration)
+        var stopAt: Date? = nil
+        if let stopAtStr = params.arguments?["stop_at"]?.stringValue {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            stopAt = iso.date(from: stopAtStr) ?? ISO8601DateFormatter().date(from: stopAtStr)
+        } else if let duration = params.arguments?["duration"]?.doubleValue {
+            stopAt = Date().addingTimeInterval(duration)
+        }
+
+        // Pass stop time to GUI via notification object (Unix timestamp string, or nil for unlimited)
         DistributedNotificationCenter.default().postNotificationName(
             PochiNotification.startRecording,
-            object: nil
+            object: stopAt.map { String($0.timeIntervalSince1970) }
         )
 
         // Poll status file for confirmation (up to 3 seconds)
         for _ in 0..<30 {
             try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
             if let status = PochiStatus.read(), status.isRecording {
-                return .init(
-                    content: [.text("Recording started: \(status.currentFile ?? "unknown")")],
-                    isError: false
-                )
+                var message = "Recording started: \(status.currentFile ?? "unknown")"
+                if let stopAt = stopAt {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "HH:mm"
+                    message += " (auto-stop at \(formatter.string(from: stopAt)))"
+                }
+                return .init(content: [.text(message)], isError: false)
             }
         }
 
@@ -646,6 +668,15 @@ private extension Value {
         case .int(let v): return v
         case .double(let v): return Int(v)
         case .string(let v): return Int(v)
+        default: return nil
+        }
+    }
+
+    var doubleValue: Double? {
+        switch self {
+        case .int(let v): return Double(v)
+        case .double(let v): return v
+        case .string(let v): return Double(v)
         default: return nil
         }
     }

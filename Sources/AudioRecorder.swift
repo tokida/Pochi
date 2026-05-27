@@ -389,7 +389,11 @@ class AudioRecorder: NSObject, ObservableObject {
     @objc private func handleMCPStartRecording(_ notification: Notification) {
         DispatchQueue.main.async {
             if !self.isRecording {
-                self.startRecording()
+                var stopAt: Date? = nil
+                if let ts = notification.object as? String, let interval = Double(ts) {
+                    stopAt = Date(timeIntervalSince1970: interval)
+                }
+                self.startRecording(stopAt: stopAt)
             }
         }
     }
