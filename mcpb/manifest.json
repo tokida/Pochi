@@ -1,0 +1,37 @@
+{
+  "manifest_version": "0.1",
+  "name": "pochi",
+  "display_name": "Pochi - Audio Recorder",
+  "version": "1.1.0",
+  "description": "macOS menu bar audio recorder with Japanese speech transcription",
+  "author": {
+    "name": "tokida"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tokida/Pochi"
+  },
+  "license": "MIT",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/Pochi",
+    "mcp_config": {
+      "command": "${__dirname}/server/Pochi",
+      "args": ["--mcp"]
+    }
+  },
+  "tools": [
+    { "name": "start_recording", "description": "Start audio recording" },
+    { "name": "stop_recording", "description": "Stop recording" },
+    { "name": "get_recording_status", "description": "Get recording status" },
+    { "name": "list_recordings", "description": "List recordings" },
+    { "name": "get_recording_info", "description": "Get recording details" },
+    { "name": "rename_recording", "description": "Rename a recording" },
+    { "name": "delete_recording", "description": "Delete a recording" },
+    { "name": "search_recordings", "description": "Search recordings" },
+    { "name": "get_transcription", "description": "Get speech transcription" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin"]
+  }
+}

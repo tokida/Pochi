@@ -12,33 +12,69 @@ struct RecordingListView: View {
                     Text(audioRecorder.isRecording ? "Recording..." : "Ready to Record")
                         .font(.headline)
                     if audioRecorder.isRecording {
-                        Text(timeString(from: audioRecorder.recordingTime))
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 4) {
+                            Text(timeString(from: audioRecorder.recordingTime))
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            if let stopAt = audioRecorder.autoStopAt {
+                                Text("→ \(stopTimeString(from: stopAt))")
+                                    .font(.subheadline)
+                                    .foregroundColor(.orange)
+                            }
+                        }
                     }
                 }
-                
+
                 Spacer()
-                
-                Button(action: {
-                    if audioRecorder.isRecording {
-                        audioRecorder.stopRecording()
-                    } else {
-                        audioRecorder.startRecording()
+
+                if audioRecorder.isRecording {
+                    Button(action: { audioRecorder.stopRecording() }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 32, height: 32)
+                                .shadow(radius: 1)
+                            Image(systemName: "stop.fill")
+                                .foregroundColor(.white)
+                                .font(.system(size: 14))
+                        }
                     }
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(audioRecorder.isRecording ? Color.red : Color.white)
-                            .frame(width: 32, height: 32)
-                            .shadow(radius: 1)
-                        
-                        Image(systemName: audioRecorder.isRecording ? "stop.fill" : "circle.fill")
-                            .foregroundColor(audioRecorder.isRecording ? .white : .red)
-                            .font(.system(size: 14))
+                    .buttonStyle(.plain)
+                } else {
+                    Menu {
+                        Button("通常（無制限）") {
+                            audioRecorder.startRecording()
+                        }
+                        Divider()
+                        Button("+15分 (\(relativeStopLabel(minutes: 15))に停止)") {
+                            audioRecorder.startRecording(stopAt: Date().addingTimeInterval(15 * 60))
+                        }
+                        Button("+30分 (\(relativeStopLabel(minutes: 30))に停止)") {
+                            audioRecorder.startRecording(stopAt: Date().addingTimeInterval(30 * 60))
+                        }
+                        Button("+60分 (\(relativeStopLabel(minutes: 60))に停止)") {
+                            audioRecorder.startRecording(stopAt: Date().addingTimeInterval(60 * 60))
+                        }
+                        Divider()
+                        ForEach(nextLandmarkTimes(), id: \.self) { date in
+                            Button("\(stopTimeString(from: date))まで") {
+                                audioRecorder.startRecording(stopAt: date)
+                            }
+                        }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 32, height: 32)
+                                .shadow(radius: 1)
+                            Image(systemName: "circle.fill")
+                                .foregroundColor(.red)
+                                .font(.system(size: 14))
+                        }
                     }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
-                .buttonStyle(.plain)
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
@@ -123,6 +159,53 @@ struct RecordingListView: View {
         let minutes = Int(timeInterval) / 60
         let seconds = Int(timeInterval) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    func stopTimeString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    func relativeStopLabel(minutes: Int) -> String {
+        let date = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        return stopTimeString(from: date)
+    }
+
+    // 現在時刻から次の :00/:15/:30 境界を最大3つ返す（5分未満はスキップ）
+    func nextLandmarkTimes() -> [Date] {
+        let now = Date()
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: now)
+        guard let hour = components.hour, components.minute != nil,
+              let year = components.year, let month = components.month, let day = components.day else {
+            return []
+        }
+
+        var candidates: [Date] = []
+        // :00, :15, :30, :45, 次の :00 ... を順に生成してフィルタ
+        for offsetHour in 0...2 {
+            for quarterMinute in [0, 15, 30, 45] {
+                var dc = DateComponents()
+                dc.year = year; dc.month = month; dc.day = day
+                dc.hour = hour + offsetHour
+                dc.minute = quarterMinute
+                dc.second = 0
+                if let candidate = calendar.date(from: dc),
+                   candidate.timeIntervalSince(now) >= 5 * 60 {
+                    candidates.append(candidate)
+                }
+            }
+        }
+
+        // 重複除去・昇順ソートして最初の3件
+        let sorted = Array(Set(candidates)).sorted()
+        // :00, :15, :30 のみ（:45 は除外）
+        let filtered = sorted.filter {
+            let m = calendar.component(.minute, from: $0)
+            return m == 0 || m == 15 || m == 30
+        }
+        return Array(filtered.prefix(3))
     }
 }
 

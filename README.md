@@ -15,15 +15,16 @@
 ## ✨ Key Features
 
 *   **Menu Bar Resident:** Always accessible from the menu bar (next to the clock), keeping your Dock clean.
-*   **Pop-over UI:** Click the icon to see your recent recordings, rename them, or manage settings instantly.
+*   **Pop-over UI** `(v1.1.0)`: Click the icon to see your recent recordings, rename them, or manage settings instantly.
 *   **One-Touch Recording:** Start/Stop recording instantly via Global Hotkey (`Cmd+Opt+R`) or the big record button in the menu.
-*   **Speech-to-Text:** Automatic transcription after recording using Apple's on-device speech recognition (Japanese). Results are cached as JSON in `~/Music/Pochi/transcripts/`. Long audio files are automatically split into chunks for reliable processing.
-*   **File Management:**
+*   **Timed Auto-Stop Recording** `(v2026.05.27)`: Click the record button to choose a stop duration or exact time. Options include +15m, +30m, +60m, or the next :00/:15/:30 boundary. The menu bar shows the scheduled stop time while recording (e.g., `🔴 00:42 →13:30`).
+*   **Speech-to-Text** `(v2026.03.08)`: Automatic transcription after recording using Apple's on-device speech recognition (Japanese). Results are cached as JSON in `~/Music/Pochi/transcripts/`. Long audio files are automatically split into chunks for reliable processing.
+*   **File Management** `(v1.1.0)`:
     *   **Rename List:** Rename your recorded files directly from the list (extensions are preserved automatically).
     *   **One-Click Finder Access:** Click the folder icon to instantly reveal your recordings in Finder.
     *   **Duration Display:** Each recording shows its duration (`mm:ss`) in the list.
-    *   **Transcription Badge:** A `txt` badge indicates transcription status — click to trigger or open the transcript.
-*   **Minimalist & Configurable:**
+    *   **Transcription Badge** `(v2026.03.08)`: A `txt` badge indicates transcription status — click to trigger or open the transcript.
+*   **Minimalist & Configurable** `(v1.1.0)`:
     *   **Gear Menu:** A clean settings menu tucked away under a gear icon.
     *   **Launch at Login:** Option to automatically start Pochi when you log in to your Mac.
     *   **Menu Bar Timer:** Option to show the recording duration directly in the menu bar (e.g., `🔴 01:23`).
@@ -31,7 +32,7 @@
     *   **Dynamic Icon:** The menu bar icon changes to a recording indicator and pulses based on your voice level.
 *   **High Quality AAC:** Saves in standard AAC (.m4a) format, perfect for importing into tools like **Google NotebookLM**.
 *   **Single Instance:** Automatic duplicate prevention — only one GUI instance can run at a time.
-*   **MCP Server Built-in:** The app itself acts as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server. Control recording and manage files from Claude Desktop or Claude Code — no extra installation needed.
+*   **MCP Server Built-in** `(v1.2.0)`: The app itself acts as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server. Control recording and manage files from Claude Desktop or Claude Code — no extra installation needed.
 
 ## 📥 Installation
 
@@ -82,7 +83,13 @@ Pochi includes a built-in MCP server. The same binary runs as a GUI app normally
 eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
 ```
 
-**Claude Desktop:**
+**Claude Desktop (One-Click Install):**
+
+1. Download `pochi.mcpb` from [GitHub Releases](https://github.com/tokida/Pochi/releases/latest).
+2. Open Claude Desktop → Settings → Install Extension...
+3. Select the downloaded `pochi.mcpb` file.
+
+**Claude Desktop (Manual):**
 
 Run the following command and add the output to your Claude Desktop configuration:
 

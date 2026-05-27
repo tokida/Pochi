@@ -23,12 +23,18 @@ jobs:
         run: |
           ditto -c -k --sequesterRsrc --keepParent Pochi.app Pochi.zip
 
+      - name: Build pochi.mcpb
+        run: |
+          chmod +x build-mcpb.sh
+          ./build-mcpb.sh
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create ${{ github.ref_name }} \
             Pochi.zip \
+            pochi.mcpb \
             --title "Pochi ${{ github.ref_name }}" \
             --notes "$(cat <<'NOTES'
           ## Install
@@ -46,6 +52,12 @@ jobs:
           > The `xattr -cr` command removes the macOS quarantine flag.
           > This is required because the app is ad-hoc signed (no Apple Developer ID).
 
+          ## MCP Extension (.mcpb) — Claude Desktop One-Click Install
+
+          1. Download **pochi.mcpb**
+          2. Claude Desktop → Settings → Install Extension...
+          3. Select the downloaded `pochi.mcpb`
+
           ## Shortcuts
 
           | Key | Action |
@@ -59,7 +71,7 @@ jobs:
           eval $(/Applications/Pochi.app/Contents/MacOS/Pochi --mcp-install)
           ```
 
-          ## MCP Setup (Claude Desktop)
+          ## MCP Setup (Claude Desktop — Manual)
 
           Add to your Claude Desktop config:
           ```

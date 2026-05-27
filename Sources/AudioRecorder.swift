@@ -28,6 +28,7 @@ class AudioRecorder: NSObject, ObservableObject {
     @Published var recordings: [Recording] = []
     @Published var transcribingFiles: Set<String> = []  // 文字起こし中のファイル名
     @Published var transcribedFiles: Set<String> = []   // 文字起こし済みファイル名
+    @Published var autoStopAt: Date? = nil
 
     private var transcriptionQueue: [String] = []  // 待機中ファイル名
     private var isTranscriptionRunning = false       // 実行中フラグ
@@ -203,7 +204,8 @@ class AudioRecorder: NSObject, ObservableObject {
         }
     }
 
-    func startRecording() {
+    func startRecording(stopAt: Date? = nil) {
+        autoStopAt = stopAt
         let fileName = getFileName()
         guard let fileURL = getFileURL(fileName: fileName) else { return }
 
@@ -236,6 +238,7 @@ class AudioRecorder: NSObject, ObservableObject {
         let recordedFileURL = audioRecorder?.url
         audioRecorder?.stop()
         isRecording = false
+        autoStopAt = nil
         stopTimer()
         releaseSleep()
         audioLevel = 0.0 // Reset level
@@ -306,6 +309,11 @@ class AudioRecorder: NSObject, ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             self.recordingTime += 0.1
+
+            if let stopAt = self.autoStopAt, Date() >= stopAt {
+                self.stopRecording()
+                return
+            }
 
             if let recorder = self.audioRecorder {
                 recorder.updateMeters()
