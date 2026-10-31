@@ -4,9 +4,11 @@ import CoreMedia
 import IOKit.pwr_mgt
 import SwiftUI
 import Speech
+import Combine
 
 struct Recording: Identifiable, Equatable {
-    let id = UUID()
+    // Stable identity so SwiftUI List diffs rows instead of rebuilding them on every fetch.
+    var id: URL { fileURL }
     let fileURL: URL
     let createdAt: Date
     let duration: TimeInterval?
@@ -24,7 +26,8 @@ class AudioRecorder: NSObject, ObservableObject {
     var audioRecorder: AVAudioRecorder?
     @Published var isRecording = false
     @Published var recordingTime: TimeInterval = 0
-    @Published var audioLevel: Float = 0.0
+    // Not @Published: 10Hz level updates must not invalidate SwiftUI views observing this object.
+    let audioLevel = CurrentValueSubject<Float, Never>(0)
     @Published var recordings: [Recording] = []
     @Published var transcribingFiles: Set<String> = []  // 文字起こし中のファイル名
     @Published var transcribedFiles: Set<String> = []   // 文字起こし済みファイル名
@@ -34,6 +37,9 @@ class AudioRecorder: NSObject, ObservableObject {
     private var isTranscriptionRunning = false       // 実行中フラグ
 
     private var timer: Timer?
+    private let scanQueue = DispatchQueue(label: "Pochi.recordingScan", qos: .userInitiated)
+    private var durationCache: [URL: (modifiedAt: Date, duration: TimeInterval?)] = [:]  // scanQueue only
+    private var pendingFetch: DispatchWorkItem?
     private var sleepAssertionID: IOPMAssertionID = 0
     private var directoryWatcher: DispatchSourceFileSystemObject?
 
@@ -67,36 +73,56 @@ class AudioRecorder: NSObject, ObservableObject {
         }
     }
 
+    /// Scans the folder off the main thread. Durations are cached per file and only
+    /// re-read when the file's modification date changes.
     func fetchRecordings() {
-        let fileManager = FileManager.default
-        guard let musicDirectory = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first else { return }
-        let pochiDir = musicDirectory.appendingPathComponent("Pochi")
+        scanQueue.async { [weak self] in
+            guard let self = self else { return }
+            let keys: [URLResourceKey] = [.creationDateKey, .contentModificationDateKey]
+            let fileURLs: [URL]
+            do {
+                fileURLs = try FileManager.default.contentsOfDirectory(at: PochiDirectory.url, includingPropertiesForKeys: keys, options: .skipsHiddenFiles)
+            } catch {
+                print("Error fetching recordings: \(error)")
+                return
+            }
 
-        do {
-            let fileURLs = try fileManager.contentsOfDirectory(at: pochiDir, includingPropertiesForKeys: [.creationDateKey], options: .skipsHiddenFiles)
-
-            let audioFiles = fileURLs.filter { ["m4a", "mp3", "wav"].contains($0.pathExtension) }
+            let audioFiles = fileURLs.filter { ["m4a", "mp3", "wav"].contains($0.pathExtension.lowercased()) }
+            var newCache: [URL: (modifiedAt: Date, duration: TimeInterval?)] = [:]
 
             let recordings = audioFiles.map { url -> Recording in
-                let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date.distantPast
-                let asset = AVURLAsset(url: url)
-                let duration: TimeInterval? = {
-                    let cmTime = asset.duration
-                    let seconds = CMTimeGetSeconds(cmTime)
-                    return seconds.isNaN ? nil : seconds
-                }()
-                return Recording(fileURL: url, createdAt: creationDate, duration: duration)
+                let values = try? url.resourceValues(forKeys: Set(keys))
+                let modifiedAt = values?.contentModificationDate ?? .distantPast
+                let duration: TimeInterval?
+                if let cached = self.durationCache[url], cached.modifiedAt == modifiedAt {
+                    duration = cached.duration
+                } else {
+                    let seconds = CMTimeGetSeconds(AVURLAsset(url: url).duration)
+                    duration = seconds.isFinite ? seconds : nil
+                }
+                newCache[url] = (modifiedAt, duration)
+                return Recording(fileURL: url, createdAt: values?.creationDate ?? .distantPast, duration: duration)
             }.sorted(by: { $0.createdAt > $1.createdAt })
+            self.durationCache = newCache  // drops entries for deleted/renamed files
+
+            let transcribedBases = TranscriptionDirectory.transcribedBaseNames()
+            let transcribed = Set(recordings.map(\.fileName).filter {
+                transcribedBases.contains(($0 as NSString).deletingPathExtension)
+            })
 
             DispatchQueue.main.async {
-                self.recordings = recordings
-                self.transcribedFiles = Set(recordings.compactMap { rec in
-                    TranscriptionDirectory.hasTranscript(for: rec.fileName) ? rec.fileName : nil
-                })
+                if self.recordings != recordings { self.recordings = recordings }
+                if self.transcribedFiles != transcribed { self.transcribedFiles = transcribed }
             }
-        } catch {
-            print("Error fetching recordings: \(error)")
         }
+    }
+
+    /// Coalesces bursts of directory events (atomic writes, recorder file creation) into one scan.
+    private func scheduleFetch() {
+        pendingFetch?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.fetchRecordings() }
+        pendingFetch = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
     private func sanitizeFileName(_ name: String) -> String {
@@ -106,10 +132,7 @@ class AudioRecorder: NSObject, ObservableObject {
 
         // If the sanitized name is empty, return a default name
         if sanitized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyyMMdd"
-            let dateString = formatter.string(from: Date())
-            return "\(dateString)-renamed"
+            return "\(Formatters.yyyyMMdd.string(from: Date()))-renamed"
         }
 
         return sanitized
@@ -241,7 +264,7 @@ class AudioRecorder: NSObject, ObservableObject {
         autoStopAt = nil
         stopTimer()
         releaseSleep()
-        audioLevel = 0.0 // Reset level
+        audioLevel.send(0) // Reset level
         writeStatus()
         print("Recording stopped.")
         fetchRecordings()
@@ -287,10 +310,7 @@ class AudioRecorder: NSObject, ObservableObject {
     }
 
     private func getFileName() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd"
-        let dateString = formatter.string(from: Date())
-
+        let dateString = Formatters.yyyyMMdd.string(from: Date())
         let sequenceNumber = getNextSequenceNumber(for: dateString)
         return "\(dateString)-\(String(format: "%02d", sequenceNumber)).m4a"
     }
@@ -305,22 +325,27 @@ class AudioRecorder: NSObject, ObservableObject {
 
     private func startTimer() {
         recordingTime = 0
-        // Update at 100ms interval (10 Hz) - good balance between smoothness and CPU usage
+        let startedAt = Date()
+        // Meter at 10 Hz; publish only when values visibly change.
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            self.recordingTime += 0.1
+            let now = Date()
 
-            if let stopAt = self.autoStopAt, Date() >= stopAt {
+            // Wall-clock based (no drift), whole seconds only -> views re-render at 1 Hz
+            let elapsed = now.timeIntervalSince(startedAt).rounded(.down)
+            if elapsed != self.recordingTime { self.recordingTime = elapsed }
+
+            if let stopAt = self.autoStopAt, now >= stopAt {
                 self.stopRecording()
                 return
             }
 
             if let recorder = self.audioRecorder {
                 recorder.updateMeters()
-                // Normalize power (roughly -160 to 0 dB) to 0.0 - 1.0
-                // Typical speech is around -30 to -10.
                 let power = recorder.averagePower(forChannel: 0)
-                self.audioLevel = self.normalizeSoundLevel(level: power)
+                // Quantize to 0.1 steps so unchanged levels are dropped downstream
+                let level = (self.normalizeSoundLevel(level: power) * 10).rounded() / 10
+                if level != self.audioLevel.value { self.audioLevel.send(level) }
             }
         }
     }
@@ -421,7 +446,7 @@ class AudioRecorder: NSObject, ObservableObject {
             queue: .main
         )
         source.setEventHandler { [weak self] in
-            self?.fetchRecordings()
+            self?.scheduleFetch()
         }
         source.setCancelHandler {
             close(fd)

@@ -16,6 +16,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Fallback positioning window for when status item is absorbed into mic menu
     var anchorWindow: NSWindow?
+
+    // Level icons are quantized to 0.1 steps (11 variants); render each once.
+    private var levelIconCache: [Int: NSImage] = [:]
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Create the status item in the menu bar
@@ -153,7 +156,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
             
-        audioRecorder.$audioLevel
+        audioRecorder.audioLevel
+            .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] level in
                 self?.updateIcon(level: level)
@@ -197,51 +201,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let seconds = Int(time) % 60
             var title = String(format: " %02d:%02d", minutes, seconds)
             if let stopAt = audioRecorder.autoStopAt {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "HH:mm"
-                title += " →\(formatter.string(from: stopAt))"
+                title += " →\(Formatters.hhmm.string(from: stopAt))"
             }
-            button.title = title
-            button.font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+            if button.title != title { button.title = title }
+            if button.font != Self.timerFont { button.font = Self.timerFont }
         } else {
             button.title = ""
         }
     }
     
+    private static let timerFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+
     func updateIcon(level: Float) {
         guard audioRecorder.isRecording, let button = statusItem.button else { return }
-        
-        // Create a dynamic image based on level
-        let size = NSSize(width: 22, height: 22)
-        let img = NSImage(size: size)
-        
-        img.lockFocus()
-        
-        // Draw context
-        if let ctx = NSGraphicsContext.current {
-            ctx.imageInterpolation = .high
-            
-            // Base radius (minimum size) + Dynamic expansion
-            // Level is 0.0 to 1.0
-            // Min radius: 3.0 (diameter 6)
-            // Max radius: 8.0 (diameter 16)
-            let maxRadius: CGFloat = 8.0
-            let minRadius: CGFloat = 3.0
-            let currentRadius = minRadius + (CGFloat(level) * (maxRadius - minRadius))
-            
-            let rect = NSRect(x: (size.width / 2) - currentRadius,
-                              y: (size.height / 2) - currentRadius,
-                              width: currentRadius * 2,
-                              height: currentRadius * 2)
-            
-            NSColor.systemRed.setFill()
-            let path = NSBezierPath(ovalIn: rect)
-            path.fill()
-        }
-        
-        img.unlockFocus()
-        img.isTemplate = false // Ensure color is preserved (Red)
-        
+
+        let step = Int((level * 10).rounded())
+        let img = levelIconCache[step] ?? {
+            // Radius grows from 3pt (silence) to 8pt (full scale)
+            let size = NSSize(width: 22, height: 22)
+            let radius = 3.0 + CGFloat(step) / 10 * 5.0
+            let image = NSImage(size: size, flipped: false) { _ in
+                NSColor.systemRed.setFill()
+                NSBezierPath(ovalIn: NSRect(x: size.width / 2 - radius, y: size.height / 2 - radius,
+                                            width: radius * 2, height: radius * 2)).fill()
+                return true
+            }
+            image.isTemplate = false // Ensure color is preserved (Red)
+            levelIconCache[step] = image
+            return image
+        }()
+
         button.image = img
         // Clear tint color to allow original image color (Red) to show
         button.contentTintColor = nil 

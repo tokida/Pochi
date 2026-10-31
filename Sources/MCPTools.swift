@@ -17,10 +17,7 @@ struct PochiStatus: Codable {
     var currentFile: String?
     var startedAt: Date?
 
-    static var fileURL: URL {
-        let musicDir = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask).first!
-        return musicDir.appendingPathComponent("Pochi").appendingPathComponent(".pochi-status.json")
-    }
+    static let fileURL = PochiDirectory.url.appendingPathComponent(".pochi-status.json")
 
     static func read() -> PochiStatus? {
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
@@ -41,10 +38,8 @@ struct PochiStatus: Codable {
 // MARK: - Pochi Directory Helper
 
 enum PochiDirectory {
-    static var url: URL {
-        let musicDir = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask).first!
-        return musicDir.appendingPathComponent("Pochi")
-    }
+    static let url: URL = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask).first!
+        .appendingPathComponent("Pochi")
 
     static func ensureExists() {
         let fm = FileManager.default
@@ -52,6 +47,27 @@ enum PochiDirectory {
             try? fm.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
+}
+
+// MARK: - Shared Formatters (DateFormatter is expensive to create; formatting is thread-safe)
+
+enum Formatters {
+    private static func make(_ configure: (DateFormatter) -> Void) -> DateFormatter {
+        let f = DateFormatter()
+        configure(f)
+        return f
+    }
+    static let yyyyMMdd = make { $0.dateFormat = "yyyyMMdd" }
+    static let hhmm = make { $0.dateFormat = "HH:mm" }
+    static let short = make { $0.dateStyle = .short; $0.timeStyle = .short }
+    static let medium = make { $0.dateStyle = .medium; $0.timeStyle = .medium }
+    static let long = make { $0.dateStyle = .long; $0.timeStyle = .long }
+    static let iso8601 = ISO8601DateFormatter()
+    static let iso8601Fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 }
 
 // MARK: - Tool Handler
@@ -279,9 +295,7 @@ class PochiToolHandler {
         // Parse optional stop time (stop_at takes priority over duration)
         var stopAt: Date? = nil
         if let stopAtStr = params.arguments?["stop_at"]?.stringValue {
-            let iso = ISO8601DateFormatter()
-            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            stopAt = iso.date(from: stopAtStr) ?? ISO8601DateFormatter().date(from: stopAtStr)
+            stopAt = Formatters.iso8601Fractional.date(from: stopAtStr) ?? Formatters.iso8601.date(from: stopAtStr)
         } else if let duration = params.arguments?["duration"]?.doubleValue {
             stopAt = Date().addingTimeInterval(duration)
         }
@@ -298,9 +312,7 @@ class PochiToolHandler {
             if let status = PochiStatus.read(), status.isRecording {
                 var message = "Recording started: \(status.currentFile ?? "unknown")"
                 if let stopAt = stopAt {
-                    let formatter = DateFormatter()
-                    formatter.dateFormat = "HH:mm"
-                    message += " (auto-stop at \(formatter.string(from: stopAt)))"
+                    message += " (auto-stop at \(Formatters.hhmm.string(from: stopAt)))"
                 }
                 return .init(content: [.text(message)], isError: false)
             }
@@ -364,10 +376,7 @@ class PochiToolHandler {
             lines.append("Current file: \(file)")
         }
         if let startedAt = status.startedAt {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .medium
-            lines.append("Started at: \(formatter.string(from: startedAt))")
+            lines.append("Started at: \(Formatters.medium.string(from: startedAt))")
         }
 
         return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
@@ -444,9 +453,7 @@ class PochiToolHandler {
             return .init(content: [.text("No recordings found.")], isError: false)
         }
 
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
+        let formatter = Formatters.short
 
         var lines: [String] = ["Found \(recordings.count) recording(s):"]
         for (url, date, size) in limited {
@@ -485,10 +492,7 @@ class PochiToolHandler {
                 lines.append("Size: \(String(format: "%.2f MB", Double(size) / 1_048_576.0))")
             }
             if let date = values.creationDate {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .long
-                formatter.timeStyle = .long
-                lines.append("Created: \(formatter.string(from: date))")
+                lines.append("Created: \(Formatters.long.string(from: date))")
             }
         }
 
@@ -613,9 +617,7 @@ class PochiToolHandler {
             return .init(content: [.text("No recordings matching '\(query)'.")], isError: false)
         }
 
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
+        let formatter = Formatters.short
 
         var lines: [String] = ["Found \(matches.count) matching recording(s):"]
         for (url, date, size) in matches {
@@ -646,7 +648,7 @@ class PochiToolHandler {
             let transcriber = try SpeechTranscriber()
             let result = try await transcriber.transcribe(filename: filename)
 
-            let formatter = ISO8601DateFormatter()
+            let formatter = Formatters.iso8601
             var lines: [String] = []
             lines.append("File: \(result.sourceFile)")
             lines.append("Transcribed at: \(formatter.string(from: result.transcribedAt))")
