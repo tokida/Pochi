@@ -228,7 +228,7 @@ class PochiToolHandler {
         case "get_transcription":
             return await handleGetTranscription(params: params)
         default:
-            return .init(content: [.text("Unknown tool: \(params.name)")], isError: true)
+            return .init(content: [.text(text: "Unknown tool: \(params.name)", annotations: nil, _meta: nil)], isError: true)
         }
     }
 
@@ -279,7 +279,7 @@ class PochiToolHandler {
         let guiRunning = await ensureGUIRunning()
         if !guiRunning {
             return .init(
-                content: [.text("Failed to launch Pochi GUI app.")],
+                content: [.text(text: "Failed to launch Pochi GUI app.", annotations: nil, _meta: nil)],
                 isError: true
             )
         }
@@ -287,7 +287,7 @@ class PochiToolHandler {
         // Check if already recording
         if let status = PochiStatus.read(), status.isRecording {
             return .init(
-                content: [.text("Already recording: \(status.currentFile ?? "unknown")")],
+                content: [.text(text: "Already recording: \(status.currentFile ?? "unknown")", annotations: nil, _meta: nil)],
                 isError: false
             )
         }
@@ -314,12 +314,12 @@ class PochiToolHandler {
                 if let stopAt = stopAt {
                     message += " (auto-stop at \(Formatters.hhmm.string(from: stopAt)))"
                 }
-                return .init(content: [.text(message)], isError: false)
+                return .init(content: [.text(text: message, annotations: nil, _meta: nil)], isError: false)
             }
         }
 
         return .init(
-            content: [.text("Recording command sent, but could not confirm start.")],
+            content: [.text(text: "Recording command sent, but could not confirm start.", annotations: nil, _meta: nil)],
             isError: false
         )
     }
@@ -329,14 +329,14 @@ class PochiToolHandler {
         let guiRunning = await ensureGUIRunning()
         if !guiRunning {
             return .init(
-                content: [.text("Failed to launch Pochi GUI app.")],
+                content: [.text(text: "Failed to launch Pochi GUI app.", annotations: nil, _meta: nil)],
                 isError: true
             )
         }
 
         // Check if actually recording
         if let status = PochiStatus.read(), !status.isRecording {
-            return .init(content: [.text("Not currently recording.")], isError: false)
+            return .init(content: [.text(text: "Not currently recording.", annotations: nil, _meta: nil)], isError: false)
         }
 
         // Send notification to GUI process
@@ -350,14 +350,14 @@ class PochiToolHandler {
             try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
             if let status = PochiStatus.read(), !status.isRecording {
                 return .init(
-                    content: [.text("Recording stopped.")],
+                    content: [.text(text: "Recording stopped.", annotations: nil, _meta: nil)],
                     isError: false
                 )
             }
         }
 
         return .init(
-            content: [.text("Stop command sent, but could not confirm.")],
+            content: [.text(text: "Stop command sent, but could not confirm.", annotations: nil, _meta: nil)],
             isError: false
         )
     }
@@ -365,7 +365,7 @@ class PochiToolHandler {
     private func handleGetRecordingStatus() -> CallTool.Result {
         guard let status = PochiStatus.read() else {
             return .init(
-                content: [.text("No status available. The Pochi GUI app may not be running.")],
+                content: [.text(text: "No status available. The Pochi GUI app may not be running.", annotations: nil, _meta: nil)],
                 isError: false
             )
         }
@@ -379,7 +379,7 @@ class PochiToolHandler {
             lines.append("Started at: \(Formatters.medium.string(from: startedAt))")
         }
 
-        return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
+        return .init(content: [.text(text: lines.joined(separator: "\n"), annotations: nil, _meta: nil)], isError: false)
     }
 
     // MARK: - File Management (direct filesystem access, no GUI needed)
@@ -428,7 +428,7 @@ class PochiToolHandler {
             includingPropertiesForKeys: [.creationDateKey, .fileSizeKey],
             options: .skipsHiddenFiles
         ) else {
-            return .init(content: [.text("No recordings found or directory does not exist.")], isError: false)
+            return .init(content: [.text(text: "No recordings found or directory does not exist.", annotations: nil, _meta: nil)], isError: false)
         }
 
         var recordings = fileURLs
@@ -450,7 +450,7 @@ class PochiToolHandler {
         let limited = recordings.prefix(Int(limit))
 
         if limited.isEmpty {
-            return .init(content: [.text("No recordings found.")], isError: false)
+            return .init(content: [.text(text: "No recordings found.", annotations: nil, _meta: nil)], isError: false)
         }
 
         let formatter = Formatters.short
@@ -464,24 +464,24 @@ class PochiToolHandler {
             lines.append("  ... and \(recordings.count - Int(limit)) more")
         }
 
-        return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
+        return .init(content: [.text(text: lines.joined(separator: "\n"), annotations: nil, _meta: nil)], isError: false)
     }
 
     private func handleGetRecordingInfo(params: CallTool.Parameters) async -> CallTool.Result {
         guard let rawFilename = params.arguments?["filename"]?.stringValue else {
-            return .init(content: [.text("Missing required parameter: filename")], isError: true)
+            return .init(content: [.text(text: "Missing required parameter: filename", annotations: nil, _meta: nil)], isError: true)
         }
 
         // Sanitize filename to prevent path traversal
         guard let filename = sanitizeFilename(rawFilename) else {
-            return .init(content: [.text("Invalid filename")], isError: true)
+            return .init(content: [.text(text: "Invalid filename", annotations: nil, _meta: nil)], isError: true)
         }
 
         let fileURL = PochiDirectory.url.appendingPathComponent(filename)
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: fileURL.path) else {
-            return .init(content: [.text("File not found: \(filename)")], isError: true)
+            return .init(content: [.text(text: "File not found: \(filename)", annotations: nil, _meta: nil)], isError: true)
         }
 
         var lines: [String] = ["File: \(filename)"]
@@ -510,18 +510,18 @@ class PochiToolHandler {
             lines.append("Duration: unknown")
         }
 
-        return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
+        return .init(content: [.text(text: lines.joined(separator: "\n"), annotations: nil, _meta: nil)], isError: false)
     }
 
     private func handleRenameRecording(params: CallTool.Parameters) -> CallTool.Result {
         guard let rawFilename = params.arguments?["filename"]?.stringValue,
               let newName = params.arguments?["new_name"]?.stringValue else {
-            return .init(content: [.text("Missing required parameters: filename, new_name")], isError: true)
+            return .init(content: [.text(text: "Missing required parameters: filename, new_name", annotations: nil, _meta: nil)], isError: true)
         }
 
         // Sanitize filename to prevent path traversal
         guard let filename = sanitizeFilename(rawFilename) else {
-            return .init(content: [.text("Invalid filename")], isError: true)
+            return .init(content: [.text(text: "Invalid filename", annotations: nil, _meta: nil)], isError: true)
         }
 
         let fm = FileManager.default
@@ -529,14 +529,14 @@ class PochiToolHandler {
         let oldURL = dir.appendingPathComponent(filename)
 
         guard fm.fileExists(atPath: oldURL.path) else {
-            return .init(content: [.text("File not found: \(filename)")], isError: true)
+            return .init(content: [.text(text: "File not found: \(filename)", annotations: nil, _meta: nil)], isError: true)
         }
 
         // Sanitize new name
         let invalidChars = CharacterSet(charactersIn: "/\\:*?\"<>|\0")
         let sanitized = newName.components(separatedBy: invalidChars).joined()
         guard !sanitized.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
-            return .init(content: [.text("Invalid new name.")], isError: true)
+            return .init(content: [.text(text: "Invalid new name.", annotations: nil, _meta: nil)], isError: true)
         }
 
         // Preserve original extension
@@ -544,7 +544,7 @@ class PochiToolHandler {
         let newURL = dir.appendingPathComponent(sanitized).appendingPathExtension(ext)
 
         guard !fm.fileExists(atPath: newURL.path) else {
-            return .init(content: [.text("A file with name '\(sanitized).\(ext)' already exists.")], isError: true)
+            return .init(content: [.text(text: "A file with name '\(sanitized).\(ext)' already exists.", annotations: nil, _meta: nil)], isError: true)
         }
 
         do {
@@ -553,41 +553,41 @@ class PochiToolHandler {
                 oldAudioFilename: filename,
                 newAudioFilename: newURL.lastPathComponent
             )
-            return .init(content: [.text("Renamed: \(filename) -> \(newURL.lastPathComponent)")], isError: false)
+            return .init(content: [.text(text: "Renamed: \(filename) -> \(newURL.lastPathComponent)", annotations: nil, _meta: nil)], isError: false)
         } catch {
-            return .init(content: [.text("Rename failed: \(error.localizedDescription)")], isError: true)
+            return .init(content: [.text(text: "Rename failed: \(error.localizedDescription)", annotations: nil, _meta: nil)], isError: true)
         }
     }
 
     private func handleDeleteRecording(params: CallTool.Parameters) -> CallTool.Result {
         guard let rawFilename = params.arguments?["filename"]?.stringValue else {
-            return .init(content: [.text("Missing required parameter: filename")], isError: true)
+            return .init(content: [.text(text: "Missing required parameter: filename", annotations: nil, _meta: nil)], isError: true)
         }
 
         // Sanitize filename to prevent path traversal
         guard let filename = sanitizeFilename(rawFilename) else {
-            return .init(content: [.text("Invalid filename")], isError: true)
+            return .init(content: [.text(text: "Invalid filename", annotations: nil, _meta: nil)], isError: true)
         }
 
         let fm = FileManager.default
         let fileURL = PochiDirectory.url.appendingPathComponent(filename)
 
         guard fm.fileExists(atPath: fileURL.path) else {
-            return .init(content: [.text("File not found: \(filename)")], isError: true)
+            return .init(content: [.text(text: "File not found: \(filename)", annotations: nil, _meta: nil)], isError: true)
         }
 
         do {
             // Move to Finder Trash (recoverable)
             try fm.trashItem(at: fileURL, resultingItemURL: nil)
-            return .init(content: [.text("Moved to Trash: \(filename)")], isError: false)
+            return .init(content: [.text(text: "Moved to Trash: \(filename)", annotations: nil, _meta: nil)], isError: false)
         } catch {
-            return .init(content: [.text("Delete failed: \(error.localizedDescription)")], isError: true)
+            return .init(content: [.text(text: "Delete failed: \(error.localizedDescription)", annotations: nil, _meta: nil)], isError: true)
         }
     }
 
     private func handleSearchRecordings(params: CallTool.Parameters) -> CallTool.Result {
         guard let query = params.arguments?["query"]?.stringValue else {
-            return .init(content: [.text("Missing required parameter: query")], isError: true)
+            return .init(content: [.text(text: "Missing required parameter: query", annotations: nil, _meta: nil)], isError: true)
         }
 
         let fm = FileManager.default
@@ -598,7 +598,7 @@ class PochiToolHandler {
             includingPropertiesForKeys: [.creationDateKey, .fileSizeKey],
             options: .skipsHiddenFiles
         ) else {
-            return .init(content: [.text("No recordings found.")], isError: false)
+            return .init(content: [.text(text: "No recordings found.", annotations: nil, _meta: nil)], isError: false)
         }
 
         let lowercaseQuery = query.lowercased()
@@ -614,7 +614,7 @@ class PochiToolHandler {
             .sorted { $0.1 > $1.1 }
 
         if matches.isEmpty {
-            return .init(content: [.text("No recordings matching '\(query)'.")], isError: false)
+            return .init(content: [.text(text: "No recordings matching '\(query)'.", annotations: nil, _meta: nil)], isError: false)
         }
 
         let formatter = Formatters.short
@@ -625,23 +625,23 @@ class PochiToolHandler {
             lines.append("  \(url.lastPathComponent)  (\(sizeMB), \(formatter.string(from: date)))")
         }
 
-        return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
+        return .init(content: [.text(text: lines.joined(separator: "\n"), annotations: nil, _meta: nil)], isError: false)
     }
 
     // MARK: - Transcription
 
     private func handleGetTranscription(params: CallTool.Parameters) async -> CallTool.Result {
         guard let rawFilename = params.arguments?["filename"]?.stringValue else {
-            return .init(content: [.text("Missing required parameter: filename")], isError: true)
+            return .init(content: [.text(text: "Missing required parameter: filename", annotations: nil, _meta: nil)], isError: true)
         }
 
         guard let filename = sanitizeFilename(rawFilename) else {
-            return .init(content: [.text("Invalid filename")], isError: true)
+            return .init(content: [.text(text: "Invalid filename", annotations: nil, _meta: nil)], isError: true)
         }
 
         let fileURL = PochiDirectory.url.appendingPathComponent(filename)
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return .init(content: [.text("File not found: \(filename)")], isError: true)
+            return .init(content: [.text(text: "File not found: \(filename)", annotations: nil, _meta: nil)], isError: true)
         }
 
         do {
@@ -655,9 +655,9 @@ class PochiToolHandler {
             lines.append("---")
             lines.append(result.text)
 
-            return .init(content: [.text(lines.joined(separator: "\n"))], isError: false)
+            return .init(content: [.text(text: lines.joined(separator: "\n"), annotations: nil, _meta: nil)], isError: false)
         } catch {
-            return .init(content: [.text("Transcription failed: \(error.localizedDescription)")], isError: true)
+            return .init(content: [.text(text: "Transcription failed: \(error.localizedDescription)", annotations: nil, _meta: nil)], isError: true)
         }
     }
 }
