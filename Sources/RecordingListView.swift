@@ -93,7 +93,12 @@ struct RecordingListView: View {
             } else {
                 List {
                     ForEach(audioRecorder.recordings) { recording in
-                        RecordingRow(audioRecorder: audioRecorder, recording: recording)
+                        RecordingRow(
+                            audioRecorder: audioRecorder,
+                            recording: recording,
+                            isTranscribing: audioRecorder.transcribingFiles.contains(recording.fileName),
+                            isTranscribed: audioRecorder.transcribedFiles.contains(recording.fileName)
+                        )
                     }
                     .onDelete(perform: audioRecorder.deleteRecording)
                 }
@@ -162,9 +167,7 @@ struct RecordingListView: View {
     }
 
     func stopTimeString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        Formatters.hhmm.string(from: date)
     }
 
     func relativeStopLabel(minutes: Int) -> String {
@@ -210,16 +213,19 @@ struct RecordingListView: View {
 }
 
 struct RecordingRow: View {
-    @ObservedObject var audioRecorder: AudioRecorder
+    // Not observed: rows only call actions on it. State arrives as plain values so a row
+    // re-renders only when its own inputs change, not on every recorder publish.
+    let audioRecorder: AudioRecorder
     let recording: Recording
+    let isTranscribing: Bool
+    let isTranscribed: Bool
     @State private var filename: String
 
-    private var isTranscribing: Bool { audioRecorder.transcribingFiles.contains(recording.fileName) }
-    private var isTranscribed: Bool { audioRecorder.transcribedFiles.contains(recording.fileName) }
-
-    init(audioRecorder: AudioRecorder, recording: Recording) {
+    init(audioRecorder: AudioRecorder, recording: Recording, isTranscribing: Bool, isTranscribed: Bool) {
         self.audioRecorder = audioRecorder
         self.recording = recording
+        self.isTranscribing = isTranscribing
+        self.isTranscribed = isTranscribed
         _filename = State(initialValue: recording.fileNameWithoutExtension)
     }
 

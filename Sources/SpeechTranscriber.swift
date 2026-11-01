@@ -1,6 +1,7 @@
 import Foundation
 import Speech
 import AVFoundation
+import os
 
 // MARK: - Transcription Result
 
@@ -13,9 +14,12 @@ struct TranscriptionResult: Codable {
 // MARK: - Transcription Directory
 
 enum TranscriptionDirectory {
-    static var url: URL {
-        let musicDir = FileManager.default.urls(for: .musicDirectory, in: .userDomainMask).first!
-        return musicDir.appendingPathComponent("Pochi").appendingPathComponent("transcripts")
+    static let url = PochiDirectory.url.appendingPathComponent("transcripts")
+
+    /// Audio filenames (any extension) that have a transcript, read in one directory listing.
+    static func transcribedBaseNames() -> Set<String> {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
+        return Set(names.filter { $0.hasSuffix(".json") }.map { ($0 as NSString).deletingPathExtension })
     }
 
     static func ensureExists() {
@@ -23,13 +27,6 @@ enum TranscriptionDirectory {
         if !fm.fileExists(atPath: url.path) {
             try? fm.createDirectory(at: url, withIntermediateDirectories: true)
         }
-    }
-
-    /// Check if a transcript JSON exists for the given audio filename.
-    static func hasTranscript(for audioFilename: String) -> Bool {
-        let baseName = (audioFilename as NSString).deletingPathExtension
-        let jsonURL = url.appendingPathComponent("\(baseName).json")
-        return FileManager.default.fileExists(atPath: jsonURL.path)
     }
 
     /// Return the transcript JSON URL for the given audio filename.
@@ -130,6 +127,13 @@ class SpeechTranscriber {
             return cached
         }
 
+        // GUI and MCP processes may transcribe the same file; serialize per file and re-check cache.
+        let lockFD = await acquireFileLock(for: filename)
+        defer { if lockFD >= 0 { flock(lockFD, LOCK_UN); close(lockFD) } }
+        if let cached = cachedResult(for: filename) {
+            return cached
+        }
+
         // Request authorization
         let status = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
@@ -177,17 +181,20 @@ class SpeechTranscriber {
         request.shouldReportPartialResults = false
 
         return try await withCheckedThrowingContinuation { continuation in
-            var resumed = false
-            recognizer.recognitionTask(with: request) { result, error in
-                guard !resumed else { return }
-                if let error = error {
-                    resumed = true
-                    continuation.resume(throwing: TranscriptionError.recognitionFailed(error.localizedDescription))
-                    return
+            // Callback can fire on arbitrary threads; guard the one-shot resume with a lock.
+            let resumed = OSAllocatedUnfairLock(initialState: false)
+            func finish(_ result: Result<String, Error>) {
+                let isFirst = resumed.withLock { done -> Bool in
+                    defer { done = true }
+                    return !done
                 }
-                if let result = result, result.isFinal {
-                    resumed = true
-                    continuation.resume(returning: result.bestTranscription.formattedString)
+                if isFirst { continuation.resume(with: result) }
+            }
+            recognizer.recognitionTask(with: request) { result, error in
+                if let error = error {
+                    finish(.failure(TranscriptionError.recognitionFailed(error.localizedDescription)))
+                } else if let result = result, result.isFinal {
+                    finish(.success(result.bestTranscription.formattedString))
                 }
             }
         }
@@ -234,7 +241,11 @@ class SpeechTranscriber {
         let tempDir = FileManager.default.temporaryDirectory
         let chunkURL = tempDir.appendingPathComponent("pochi_chunk_\(UUID().uuidString).m4a")
 
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+        // m4a (AAC) can be cut without re-encoding; other formats need AAC encoding to fit .m4a.
+        let preset = asset.url.pathExtension.lowercased() == "m4a"
+            ? AVAssetExportPresetPassthrough
+            : AVAssetExportPresetAppleM4A
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: preset) else {
             throw TranscriptionError.recognitionFailed("Could not create export session.")
         }
 
@@ -252,6 +263,21 @@ class SpeechTranscriber {
         }
 
         return chunkURL
+    }
+
+    // MARK: - Cross-process Lock
+
+    /// Returns a flock'd fd (or -1 if the lock file can't be opened — proceed unlocked).
+    private func acquireFileLock(for filename: String) async -> Int32 {
+        TranscriptionDirectory.ensureExists()
+        let baseName = (filename as NSString).deletingPathExtension
+        let path = TranscriptionDirectory.url.appendingPathComponent(".\(baseName).lock").path
+        let fd = open(path, O_WRONLY | O_CREAT, 0o644)
+        guard fd >= 0 else { return -1 }
+        while flock(fd, LOCK_EX | LOCK_NB) != 0 {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+        return fd
     }
 
     // MARK: - Save Result

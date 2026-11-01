@@ -101,7 +101,7 @@ Run the following command and add the output to your Claude Desktop configuratio
 
 | Tool | Description | GUI Required |
 |------|-------------|:---:|
-| `start_recording` | Start audio recording (auto-launches GUI if needed) | Auto |
+| `start_recording` | Start audio recording (auto-launches GUI if needed). Optional: `duration` (seconds) or `stop_at` (ISO 8601) for timed auto-stop `(v2026.05.27.1)` | Auto |
 | `stop_recording` | Stop audio recording (auto-launches GUI if needed) | Auto |
 | `get_recording_status` | Check current recording state | No |
 | `list_recordings` | List recordings (with date filter / limit) | No |
